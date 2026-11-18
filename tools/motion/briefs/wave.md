@@ -1,0 +1,5 @@
+# 파도 (Waves)
+
+User: "파도는 왼쪽에서 천천히 오른쪽으로 파도가 치는 모습으로 파도는 얕기도 살짝 강하기도 긴 웨이브로 오게 해줘. 진짜 바다를 보는 것처럼" (Waves rolling slowly from left to right; long waves, sometimes shallow, sometimes slightly stronger — like watching the real sea.) Earlier the user showed a reference they liked: a single smooth line rising out of a flat water surface into a curling crest, followed by a smaller curl — waves that rise from the surface.
+Notes: a seascape at 18 pt. The sea surface carries long swells traveling slowly left to right. Over the loop the swell varies: gentle low swells, then a slightly stronger set wave whose crest rises and curls or breaks forward (to the right) with a little foam, then calm again. Depth: a back swell layer (separated by a cut or drawn lighter) moving slower — parallax. Crafted: crest lips as designed curls (not sine bumps), foam and spray as small crafted shapes or cuts, the water body filled solid; a horizon is optional. Seamless loop. The sea fills down to y = 16.
+Frames: 48-64 (6-8 s).

@@ -1,0 +1,12 @@
+build/
+dist/
+.DS_Store
+# 디자인 작업 산출물 (확인 그림, 회의 메모, 보고서)
+tools/motion/out/
+tools/motion/notes/
+tools/motion/figma/
+tools/bin/
+/*.png
+/*-REPORT.md
+marks-preview.html
+homebrew-tap/

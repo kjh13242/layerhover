@@ -1,0 +1,5 @@
+# 석탑 (Stone pagoda)
+
+User: "돌탑은 정말 탑 모양으로 한국 절에 있는 탑 모양을 따라가게 해줘. 그 상태에서 탑 위에 눈이 조금씩 내리는걸로." (Make it a real pagoda shape, following the pagodas at Korean temples. And snow falls little by little on the pagoda.)
+Notes: follow the classic Silla three-story stone pagoda (e.g., Bulguksa Seokgatap 불국사 삼층석탑): a two-tier base platform (이층기단) whose faces show corner pillars and a middle pillar carved as thin cuts; three body stones (탑신) that get smaller each story, each with corner pillars; wide thin roof stones (옥개석) with a stepped underside (층급받침; can be suggested with one cut) and gently upturned eave corners (전각 반전); a slender finial (상륜부) with 2-3 knobs or rings. Tall elegant proportions, perfectly symmetric, crisp. Snow: a few flakes fall slowly and gently, drifting slightly; flakes are small crafted shapes (at least 1 pt), not too many (3-6 visible); optionally a thin snow cap gathers on the roof stones (any reset must be smooth). Ground y = 16, the pagoda itself is still.
+Frames: 48-64.

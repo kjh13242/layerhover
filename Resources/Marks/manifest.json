@@ -1,0 +1,132 @@
+{
+  "fps" : 8,
+  "marks" : [
+    {
+      "en" : "Pensive Bodhisattva",
+      "frames" : 48,
+      "id" : "buddha",
+      "ko" : "반가사유상"
+    },
+    {
+      "en" : "Waves",
+      "frames" : 64,
+      "id" : "wave",
+      "ko" : "파도"
+    },
+    {
+      "en" : "Surfing",
+      "frames" : 48,
+      "id" : "surf",
+      "ko" : "서핑"
+    },
+    {
+      "en" : "Fishing",
+      "frames" : 64,
+      "id" : "fishing",
+      "ko" : "낚시"
+    },
+    {
+      "en" : "Christmas tree",
+      "frames" : 48,
+      "id" : "tree",
+      "ko" : "크리스마스 나무"
+    },
+    {
+      "en" : "Magnolia",
+      "frames" : 56,
+      "id" : "magnolia",
+      "ko" : "목련"
+    },
+    {
+      "en" : "Lotus",
+      "frames" : 56,
+      "id" : "lotus",
+      "ko" : "연꽃"
+    },
+    {
+      "en" : "Stone pagoda",
+      "frames" : 64,
+      "id" : "pagoda",
+      "ko" : "석탑"
+    },
+    {
+      "en" : "Incense",
+      "frames" : 64,
+      "id" : "incense",
+      "ko" : "향"
+    },
+    {
+      "en" : "Big Dipper",
+      "frames" : 64,
+      "id" : "dipper",
+      "ko" : "북두칠성"
+    },
+    {
+      "en" : "Cat and butterfly",
+      "frames" : 48,
+      "id" : "cat",
+      "ko" : "고양이와 나비"
+    },
+    {
+      "en" : "Leaf",
+      "frames" : 56,
+      "id" : "leaf",
+      "ko" : "나뭇잎"
+    },
+    {
+      "en" : "Side peek",
+      "frames" : 48,
+      "id" : "peek",
+      "ko" : "옆에서 나오는 패널"
+    },
+    {
+      "en" : "wx-clear",
+      "frames" : 48,
+      "id" : "wx-clear",
+      "ko" : "wx-clear"
+    },
+    {
+      "en" : "wx-cloudy",
+      "frames" : 48,
+      "id" : "wx-cloudy",
+      "ko" : "wx-cloudy"
+    },
+    {
+      "en" : "wx-fog",
+      "frames" : 48,
+      "id" : "wx-fog",
+      "ko" : "wx-fog"
+    },
+    {
+      "en" : "wx-night",
+      "frames" : 48,
+      "id" : "wx-night",
+      "ko" : "wx-night"
+    },
+    {
+      "en" : "wx-partly",
+      "frames" : 48,
+      "id" : "wx-partly",
+      "ko" : "wx-partly"
+    },
+    {
+      "en" : "wx-rain",
+      "frames" : 48,
+      "id" : "wx-rain",
+      "ko" : "wx-rain"
+    },
+    {
+      "en" : "wx-snow",
+      "frames" : 48,
+      "id" : "wx-snow",
+      "ko" : "wx-snow"
+    },
+    {
+      "en" : "wx-storm",
+      "frames" : 48,
+      "id" : "wx-storm",
+      "ko" : "wx-storm"
+    }
+  ],
+  "version" : 1
+}

@@ -1,0 +1,6 @@
+# 반가사유상 (Pensive Bodhisattva)
+
+User: "불상은 반가사유상을 기반으로 하자. 자세를 고쳐 앉는 모습이었으면 해." (Base the Buddha on the Pensive Bodhisattva; it should look like it is re-settling its posture.)
+Notes: Korea's gilt-bronze Pensive Bodhisattva (반가사유상, National Treasures 78 and 83). Essential silhouette: a crown (low three-peaked crown for No. 83, a taller ornate crown for No. 78); an oval face, slightly bowed; the fingertips of the right hand touching the cheek; the right elbow resting on the right knee; the right leg crossed over the left knee (half-lotus: right ankle on the left knee, so the crossed shin reads as a near-horizontal); the left leg hanging down to a small lotus footrest; a slender bare torso; the robe cascading over a round stool in layered folds (very characteristic). At 18 pt prioritize: crown + bowed head + the hand-to-cheek triangle; the crossed near-horizontal leg; the cascading drapery over the stool; the pendant leg and footrest.
+Motion — re-settling (고쳐 앉기): from the pensive pose the figure lifts its head and straightens its back (the hand eases off the cheek), shoulders settle, a breath, then it sinks back into contemplation. Calm and slow but clearly visible at actual size (head travel about 1.5-2.5 pt). The stool, drapery base and footrest stay fixed on the ground (y = 16).
+Frames: 40-56 (5-7 s).

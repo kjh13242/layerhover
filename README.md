@@ -1,0 +1,53 @@
+# Layerhover
+
+Figma 데스크톱 앱을 위한 macOS 메뉴 막대 도우미입니다. **Figma의 공식 제품이 아니며 Figma와 관련이 없습니다.**
+
+- **패널 꺼내기** — 패널을 접어 둔 채(최소화 모드) 화면 왼쪽 끝에 마우스를 대면 펼치고, 벗어나면 다시 접습니다.
+- **페이지 바로가기** — Figma 왼쪽 아래 페이지 버튼과 ‹ ›, 단축키(⌃⌥P · ⌃⌥← · ⌃⌥→)로 패널을 열지 않고 페이지를 옮깁니다.
+- **작업 기록** — 이번 주 Figma 작업 시간을 파일·페이지별로 보여 줍니다. 이 Mac에만 저장합니다.
+- **움직이는 메뉴 막대 아이콘** — 14가지(반가사유상, 파도, 목련, 향, 날씨 …) 가운데 고릅니다.
+- **Claude 작업 상태** — Claude가 Figma 파일을 고치는 동안 페이지 버튼에 표시합니다.
+
+## 설치
+
+```bash
+brew install --cask kjh13242/layerhover/layerhover
+```
+
+또는 [Releases](https://github.com/kjh13242/layerhover/releases)에서 `Layerhover.zip`을 받아 `Layerhover.app`을 응용 프로그램 폴더로 옮깁니다.
+
+Apple 개발자 서명이 없는 앱이라 처음 열 때 "확인되지 않은 개발자" 경고가 뜰 수 있습니다.
+시스템 설정 > 개인정보 보호 및 보안 아래쪽의 **그래도 열기**를 누르거나, 터미널에서 아래 한 줄을 실행하세요.
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Layerhover.app
+```
+
+그다음 **손쉬운 사용** 권한을 켜 주세요(시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용).
+Figma 안의 접기·펼치기 버튼을 대신 누르는 데 필요합니다. 새 버전으로 바꾼 뒤에는 다시 켜야 할 수 있습니다.
+
+자세한 사용법은 [INSTALL.txt](INSTALL.txt)에 있습니다.
+
+## 권한과 개인정보
+
+| 권한 | 언제 | 무엇에 |
+|---|---|---|
+| 손쉬운 사용 | 항상 | Figma 패널 접기·펼치기, 페이지 이동 |
+| 위치 | "날씨" 아이콘을 고른 동안만 | 지금 위치의 날씨 (약 1km 정밀도로 Open-Meteo 또는 wttr.in에 요청) |
+| 화면 기록 | "이동할 때 패널 가리기"를 켰을 때만 | 페이지를 옮기는 순간 화면을 잠깐 덮기 (저장하지 않음) |
+
+작업 기록과 설정은 이 Mac에만 저장되고, 날씨 요청 말고는 밖으로 보내는 것이 없습니다.
+
+## 요구 사항
+
+macOS 13 이상, Figma 데스크톱 앱.
+
+## 직접 빌드
+
+```bash
+./build.sh            # build/Layerhover.app, dist/Layerhover.zip
+build/Layerhover.app/Contents/MacOS/Layerhover --self-test
+```
+
+Xcode 또는 Command Line Tools가 필요합니다. 메뉴 막대 아이콘 장면은 `tools/motion/`의 스크립트로 만들고
+`tools/marks-tool.swift`(Figma에서 내보낸 장면)와 `tools/motion-lab.swift bake`(날씨 장면)로 `Resources/Marks`에 굽습니다.
