@@ -14,6 +14,8 @@ Figma 데스크톱 앱을 위한 macOS 메뉴 막대 도우미입니다. **Figma
 brew install --cask kjh13242/layerhover/layerhover
 ```
 
+Homebrew가 신뢰하지 않는 tap이라고 하면 `brew trust --cask kjh13242/layerhover/layerhover`를 먼저 실행하세요.
+
 또는 [Releases](https://github.com/kjh13242/layerhover/releases)에서 `Layerhover.zip`을 받아 `Layerhover.app`을 응용 프로그램 폴더로 옮깁니다.
 
 Apple 개발자 서명이 없는 앱이라 처음 열 때 "확인되지 않은 개발자" 경고가 뜰 수 있습니다.
