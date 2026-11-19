@@ -50,8 +50,8 @@ func runSelfTests() -> Bool {
 
     print("장면 읽기")
     let lib = MarkLibrary.shared
-    let expected = ["buddha", "wave", "surf", "fishing", "tree", "magnolia", "lotus", "pagoda", "incense", "dipper", "cat", "leaf", "peek", "weather"]
-    check("목록이 13개 + 날씨이고 순서가 기획안과 같다 (FR-004)", lib.marks.map(\.id) == expected)
+    let expected = ["buddha", "wave", "surf", "fishing", "tree", "magnolia", "lotus", "pagoda", "incense", "crane", "cat", "leaf", "furin", "peek"]
+    check("목록이 14개이고 순서가 기획안과 같다, 날씨는 고르기 칸에 없다 (FR-004)", lib.marks.map(\.id) == expected)
     for w in ["wx-clear", "wx-night", "wx-partly", "wx-cloudy", "wx-rain", "wx-snow", "wx-storm", "wx-fog"] {
         lib.weatherMark = w
         if case .complete(let f) = lib.asset(MarkLibrary.weatherID) { check("날씨 \(w): 장면 \(f.count)장", f.count == 48) }
@@ -67,6 +67,8 @@ func runSelfTests() -> Bool {
         check("wttr 코드 \(code)\(day ? "" : " 밤") → \(want)", WeatherService.wwoMarkID(code: code, isDay: day) == want)
     }
     check("초당 8장면", lib.fps == 8)
+    check("업데이트 버전 비교", Updater.isNewer("1.6.1", than: "1.6.0") && Updater.isNewer("1.10", than: "1.9.9")
+          && !Updater.isNewer("1.6.0", than: "1.6.0") && !Updater.isNewer("1.5.9", than: "1.6"))
     check("이름이 한국어·영어 모두 있다 (NFR-008)", lib.marks.allSatisfy { !$0.ko.isEmpty && !$0.en.isEmpty })
     var bytes = 0
     for m in lib.marks {

@@ -387,6 +387,8 @@ final class Pane {
     // 패널이 펼쳐지고 접히는 순간을 바로 알아채려고 붙잡아 두는 버튼들.
     // 접혀 있을 때는 "펼치기" 버튼이, 펼쳐져 있을 때는 "접기" 버튼이 화면에 있다. 사라지면 상태가 바뀐 것이다.
     var expandElement: AXUIElement?
+    var lastX: CGFloat?             // 직전 확인 때 마우스 x (끝으로 달려가는 속도를 재려고)
+    var lastT: TimeInterval = 0
     var minimizeElement: AXUIElement?
     // Layerhover가 펼치기를 누른 직후: Figma가 패널을 그리기 전이라 아직 "접힘"으로 읽힌다.
     // 이 시각까지는 접힘으로 읽혀도 믿지 않는다 (버튼이 사라졌다 다시 나오는 깜빡임을 막는다).
@@ -442,6 +444,7 @@ final class Engine {
     private var app: AXUIElement?
     private var panes: [Pane] = []
     private var lastRefresh: TimeInterval = 0
+    private var lastFrameTrack: TimeInterval = 0
     private(set) var windowFrame: CGRect?   // Figma 창 (페이지 버튼 그림자가 창 밖으로 나가지 않게 자른다)
     private var windowElement: AXUIElement?
 
@@ -520,7 +523,11 @@ final class Engine {
             app = ax; panes = []; lastRefresh = 0
         }
         if now - lastRefresh > 0.7 { refreshPanes(); lastRefresh = now }
-        trackFrames()
+        // 창 위치·버튼 상태는 0.12초마다 본다 (Figma에 묻는 일이라 0.04초마다 하면 CPU를 꽤 쓴다).
+        // 페이지 이동 중이거나 패널이 막 바뀌는 중에는 매번 본다. 마우스 확인은 아래에서 매번 한다.
+        if pageJob != nil || panes.contains(where: { now < $0.settlingUntil }) || now - lastFrameTrack >= 0.11 {
+            trackFrames(); lastFrameTrack = now
+        }
         if now - lastURLCheck > 0.2 { watchAddresses(now); lastURLCheck = now }
         if let job = pageJob { stepPageJob(job, now) }
         if now - lastWatch > 0.5 { watchPages(now); lastWatch = now }
@@ -618,7 +625,14 @@ final class Engine {
         // 페이지 버튼이 왼쪽 아래 끝 가까이에 있다. 버튼을 누르러 가다 끝에 닿아 패널이 펼쳐지지 않게,
         // 버튼이 있는 아래쪽 띠에서는 왼쪽 끝 반응을 끈다.
         let inButtonBand = protectButtonBand && p.y >= f.maxY - Engine.buttonBand
-        let atLeft = !inButtonBand && p.x >= f.minX - 1 && p.x <= f.minX + (leftHard ? hardEdgeZone : softEdgeZone)
+        // 미리 누르기 ("바로"일 때만): 마우스가 화면 왼쪽 끝으로 빠르게 달려가고 있으면 닿기 직전에 누른다.
+        // Figma가 패널을 그리는 데 0.25~0.35초 걸려서, 닿은 뒤에 누르면 한 박자 늦게 느껴진다.
+        let vx: CGFloat = pane.lastX.map { now > pane.lastT ? ($0 - p.x) / CGFloat(now - pane.lastT) : 0 } ?? 0   // 왼쪽으로 가는 속도 (pt/초)
+        pane.lastX = p.x; pane.lastT = now
+        let dist = p.x - f.minX
+        let heading = hardDwell == 0 && leftHard && !inButtonBand && dist > hardEdgeZone && dist <= 60
+            && vx > 900 && dist / vx < 0.07
+        let atLeft = heading || (!inButtonBand && p.x >= f.minX - 1 && p.x <= f.minX + (leftHard ? hardEdgeZone : softEdgeZone))
         let atRight = rightEdge && p.x <= f.maxX + 1 && p.x >= f.maxX - (rightHard ? hardEdgeZone : softEdgeZone)
         guard atLeft || atRight else { pane.edgeSince = nil; pane.edgeLatched = false; return }
         guard !pane.edgeLatched, NSEvent.pressedMouseButtons == 0 else { return }
@@ -630,13 +644,22 @@ final class Engine {
 
         pane.edgeLatched = true
         pane.edgeSince = nil
-        let layout = FigmaReader.layout(of: pane.element)
-        let side = atLeft ? "left" : "right"
+        let side = heading ? "left, early" : atLeft ? "left" : "right"
         var opened = false
-        if let button = layout.expandButton {
+        let t0 = ProcessInfo.processInfo.systemUptime
+        // 빠른 길: 정기 확인 때 찾아 둔 "펼치기" 버튼을 바로 누른다. 화면 구조를 다시 읽는 데 큰 파일에서는
+        // 0.1초 넘게 걸려서, 끝에 닿은 뒤 펼쳐지기까지 늦게 느껴졌다. 누르기가 실패할 때만 다시 읽는다.
+        if let cached = pane.expandElement, cached.press() {
+            opened = true
+            pane.via = .expandButton
+            log("expand (\(side) edge) cached \(Int((ProcessInfo.processInfo.systemUptime - t0) * 1000))ms")
+        }
+        let layout = opened ? PaneLayout() : FigmaReader.layout(of: pane.element)
+        if opened {
+        } else if let button = layout.expandButton {
             opened = button.press()
             pane.via = .expandButton
-            log("expand (\(side) edge) pressed=\(opened)")
+            log("expand (\(side) edge) pressed=\(opened) \(Int((ProcessInfo.processInfo.systemUptime - t0) * 1000))ms")
         } else if layout.isHidden {
             guard canToggleUI else { pane.edgeLatched = false; return }  // 잠시 뒤 다시 시도
             opened = toggleUI(focusing: pane)
@@ -1967,11 +1990,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem!
     var timer: Timer?
     var guideWindow: NSWindow?
+    var settingsWindow: NSWindow?
     // 메뉴 막대 아이콘(Marks.swift)과, 아이콘을 누르면 뜨는 패널(MenuPanel.swift)
     var player: MarkPlayer!
     private var statusTitleKey = ""
     let menuModel = MenuModel()
     private var popover: NSPopover?
+    /// 패널을 붙이는 보이지 않는 창. 연 순간 메뉴 막대 아이콘 칸 자리에 놓는다.
+    /// 아이콘 칸에 직접 붙이면 온도를 켜고 끌 때 칸 폭이 바뀌어 패널이 좌우로 흔들린다.
+    private var panelAnchor: NSWindow?
     private var outsideClick: Any?
     let defaults = UserDefaults.standard
     let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
@@ -1982,7 +2009,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         defaults.register(defaults: ["enabled": true, "rightEdge": false, "minimizeByDefault": true,
                                      "collapseDelay": 0.12, "leaveMargin": 12.0,
                                      "hardDwell": 0.06, "softDwell": 0.18,
-                                     "showPageChip": true, "pageShortcuts": true, "workLog": true, "coverPanel": false, "animateMark": true, "weatherTemp": true])
+                                     "showPageChip": true, "pageShortcuts": true, "workLog": true, "coverPanel": false, "animateMark": true, "weatherMode": 0])
         engine.coverPanel = defaults.bool(forKey: "coverPanel")
         ActivityLog.shared.enabled = defaults.bool(forKey: "workLog")
         engine.enabled = defaults.bool(forKey: "enabled")
@@ -1996,8 +2023,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         pages.shortcutsOn = defaults.bool(forKey: "pageShortcuts")
 
         // 1.5.0에서 바뀐 아이콘: 골라 둔 사람은 새 아이콘으로 이어 준다
-        let renamed = ["lily": "magnolia", "moon": "dipper", "cairn": "pagoda"]
+        let renamed = ["lily": "magnolia", "moon": "crane", "dipper": "crane", "cairn": "pagoda"]   // 북두칠성은 학으로 바뀌었다
         if let old = defaults.string(forKey: "menuMark"), let now = renamed[old] { defaults.set(now, forKey: "menuMark") }
+        // 1.6.0의 "날씨" 아이콘은 이제 따로 켜는 줄이다: 골라 두었으면 그 설정으로 옮긴다
+        if defaults.string(forKey: "menuMark") == MarkLibrary.weatherID {
+            defaults.set(defaults.object(forKey: "weatherTemp") as? Bool == false ? 1 : 2, forKey: "weatherMode")
+            defaults.set(MarkLibrary.defaultID, forKey: "menuMark")
+        }
         // 저장된 아이콘이 목록에 없으면(예: 예전 버전의 값) 기본 아이콘으로 바꿔 저장한다
         if MarkLibrary.shared.isLoaded, !MarkLibrary.shared.contains(defaults.string(forKey: "menuMark") ?? "") {
             defaults.set(MarkLibrary.defaultID, forKey: "menuMark")
@@ -2010,26 +2042,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         player = MarkPlayer(library: .shared, button: statusItem.button)
         player.onSystemChange = { [weak self] in self?.refreshIcon() }
         WeatherService.shared.onChange = { [weak self] in self?.refreshIcon() }
+        Updater.shared.onChange = { [weak self] in self?.syncMenuModel() }
+        if !uiPreview { Updater.shared.start() }
         refreshIcon()
         if weatherDemo { runWeatherDemo(); return }
         if uiPreview { showWelcomeIfNeeded(); return }
 
         // 0.04초마다 확인한다. Figma가 뒤에 있을 때는 할 일이 거의 없으므로 6번에 한 번(약 0.25초)만 돈다.
         // (앱을 오가는 순간은 PageNavigator가 알림을 받아 바로 처리한다)
-        var skipped = 0
-        let t = Timer(timeInterval: 0.04, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            if !self.engine.isFigmaActive && self.engine.pageJob == nil {
-                skipped += 1
-                if skipped < 6 { return }
-            }
-            skipped = 0
-            self.engine.tick()
-            self.pages.tick()
+        // Figma가 앞에 있을 때만 0.04초마다 확인한다. 다른 앱을 쓰는 동안에는 2초에 한 번만 깨어나고
+        // (예전엔 0.04초마다 깨어나 건너뛰기만 해도 CPU를 1~2% 썼다), Figma가 앞으로 오면 알림을 받아 바로 빨라진다.
+        scheduleTimer()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.scheduleTimer()
         }
-        t.tolerance = 0.01
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
 
         // 권한 없이 켜진 뒤에 권한을 받으면, macOS가 이 프로세스에는 다른 앱 화면을 제대로
         // 보여 주지 않는다 (펼치기·접기가 동작하지 않음). 권한이 생기면 스스로 다시 켠다.
@@ -2049,6 +2076,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             showWelcomeIfNeeded()
         }
+    }
+
+    private var timerFast: Bool?
+    /// 빠른(0.04초)·느린(2초) 확인 주기를 지금 상태에 맞춘다. 같으면 그대로 둔다.
+    func scheduleTimer() {
+        let fast = engine.isFigmaActive || engine.pageJob != nil
+        guard fast != timerFast else { return }
+        timerFast = fast
+        timer?.invalidate()
+        let t = Timer(timeInterval: fast ? 0.04 : 2.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.engine.tick()
+            self.pages.tick()
+            self.scheduleTimer()
+        }
+        t.tolerance = fast ? 0.01 : 0.5
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+        if fast { engine.tick(); pages.tick() }
     }
 
     /// 권한을 받고 다시 켜진 뒤 한 번, "준비됐어요"와 써 보는 법을 보여 준다.
@@ -2079,11 +2125,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 refreshIcon()
                 log("preview switch worst=\(String(format: "%.1f", worst))ms restored=\(currentMarkID)")
             }
-            if steps.contains("settings") { menuModel.settingsOpen = true }
-            if steps.contains("panel") || steps.contains("settings") {
-                togglePanel()
-                if steps.contains("settings") { menuModel.settingsOpen = true }
-            }
+            if steps.contains("panel") { togglePanel() }
+            if steps.contains("settings") { showSettings() }
             if steps.contains("welcome") { showGuide() }
         }
     }
@@ -2126,14 +2169,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// 메뉴 막대 아이콘을 지금 상태에 맞춘다. 무엇을 보여 줄지는 MarkRules 가 정한다.
     func refreshIcon() {
-        let lib = MarkLibrary.shared, chosen = weatherDemo ? MarkLibrary.weatherID : currentMarkID
+        let lib = MarkLibrary.shared, chosen = weatherDemo || weatherMode > 0 ? MarkLibrary.weatherID : currentMarkID
         // 날씨: 고른 동안만 위치·날씨를 받는다 (화면 확인 모드에서는 권한을 묻지 않는다)
         let weather = WeatherService.shared
         if chosen == MarkLibrary.weatherID && !uiPreview { weather.start() } else { weather.stop() }
         lib.weatherMark = weatherDemo ? weatherDemoScene.mark : weather.mark
         let id = lib.resolve(chosen)
         // 온도를 켜면 값이 오기 전에도 자리를 바로 잡고 흐린 "–°" 로 받는 중임을 보여 준다
-        if chosen == MarkLibrary.weatherID && (weatherDemo || defaults.bool(forKey: "weatherTemp")) {
+        if chosen == MarkLibrary.weatherID && (weatherDemo || weatherMode == 2) {
             if weatherDemo { updateStatusTitle("\(weatherDemoScene.temp)°") }
             else if let t = weather.temperature { updateStatusTitle("\(t)°") } else { updateStatusTitle("–°", placeholder: true) }
         } else {
@@ -2203,10 +2246,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         m.marks = MarkLibrary.shared.marks
         m.selectedMark = currentMarkID
         let w = WeatherService.shared
-        m.weatherOn = currentMarkID == MarkLibrary.weatherID
+        m.weatherMode = weatherMode
         m.weatherStatus = w.statusLine
         m.weatherDenied = w.state == .denied
-        m.weatherTemp = defaults.bool(forKey: "weatherTemp")
+        m.weatherTemp = weatherDemo ? weatherDemoScene.temp : w.temperature
+        let up = Updater.shared
+        m.autoUpdate = up.autoInstall
+        m.updateStatus = up.statusLine
+        m.updateVersion = up.availableVersion
+        if case .installing = up.state { m.updateBusy = true } else { m.updateBusy = up.state == .checking }
+        m.weatherShowTemp = weatherMode > 0 ? weatherMode == 2 : (defaults.object(forKey: "weatherShowTemp") as? Bool ?? true)
         m.animateMark = defaults.bool(forKey: "animateMark")
         m.motionBlocked = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             ? L("macOS '동작 줄이기'가 켜져 있어 멈춰 있어요", "Paused because Reduce Motion is on")
@@ -2221,7 +2270,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         m.coverNeedsPermission = engine.coverPanel && !PanelCover.hasPermission
         m.workLog = ActivityLog.shared.enabled
         m.launchAtLogin = SMAppService.mainApp.status == .enabled
-        m.settingsOpen = defaults.bool(forKey: "menuSettingsOpen")
     }
 
     private func wireMenuActions() {
@@ -2234,7 +2282,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         a.showSummary = closing { [weak self] in self?.showSummary() }
         a.selectMark = { [weak self] id in self?.selectMark(id) }
         a.toggleAnimate = { [weak self] in self?.toggleMarkAnimation() }
-        a.setWeatherTemp = { [weak self] on in self?.defaults.set(on, forKey: "weatherTemp"); self?.refreshIcon() }
+        a.setWeatherMode = { [weak self] mode in
+            guard let self else { return }
+            self.defaults.set(mode, forKey: "weatherMode")
+            if mode > 0 { self.defaults.set(mode == 2, forKey: "weatherShowTemp") }
+            self.refreshIcon()
+        }
+        a.checkUpdate = { Updater.shared.check() }
+        a.installUpdate = { Updater.shared.installNow() }
+        a.toggleAutoUpdate = { [weak self] in Updater.shared.autoInstall.toggle(); self?.syncMenuModel() }
+        a.setWeatherTemp = { [weak self] on in     // 온도 스위치: 기억해 두고, 날씨를 쓰는 중이면 바로 바꾼다
+            guard let self else { return }
+            self.defaults.set(on, forKey: "weatherShowTemp")
+            if self.weatherMode > 0 { self.defaults.set(on ? 2 : 1, forKey: "weatherMode") }
+            self.refreshIcon(); self.syncMenuModel()
+        }
         a.openLocationSettings = closing {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices")!)
         }
@@ -2250,11 +2312,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         a.connectClaude = closing { [weak self] in self?.connectClaude() }
         a.showGuide = closing { [weak self] in self?.showGuide() }
         a.showLog = closing { [weak self] in self?.showLog() }
+        a.showSettings = closing { [weak self] in self?.showSettings() }
         a.quit = { [weak self] in self?.quit() }
-        a.setSettingsOpen = { [weak self] open in
-            self?.defaults.set(open, forKey: "menuSettingsOpen")
-            self?.menuModel.settingsOpen = open
-        }
         menuModel.actions = a
     }
 
@@ -2264,16 +2323,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if popover == nil {
             wireMenuActions()
             let host = NSHostingController(rootView: MenuPanelView(model: menuModel))
-            host.sizingOptions = [.preferredContentSize]     // 설정을 펼치면 패널이 따라 커진다
+            host.sizingOptions = [.preferredContentSize]     // 패널 높이는 권한 상태에 따라서만 달라진다 (펼치는 부분이 없다)
             let p = NSPopover()
             p.behavior = .transient
             p.animates = true
             p.contentViewController = host
             popover = p
+            NotificationCenter.default.addObserver(forName: NSPopover.didCloseNotification, object: p, queue: .main) { [weak self] _ in
+                self?.panelAnchor?.orderOut(nil)
+                self?.statusItem.button?.highlight(false)
+                if let m = self?.outsideClick { NSEvent.removeMonitor(m); self?.outsideClick = nil }
+            }
         }
         syncMenuModel()
         ActivityLog.shared.flush()
-        popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        if let bw = button.window {
+            // 기준은 아이콘만 있을 때의 정사각형 칸: 메뉴 막대 칸은 오른쪽 끝이 고정되고 온도가 붙으면 왼쪽으로 늘어나므로,
+            // 오른쪽 끝에서 정사각형 한 칸만큼을 잡는다. 온도를 켜고 열든 끄고 열든 패널은 늘 같은 자리다.
+            var rect = bw.convertToScreen(button.convert(button.bounds, to: nil))
+            let square = NSStatusBar.system.thickness
+            if rect.width > square { rect.origin.x = rect.maxX - square; rect.size.width = square }
+            let anchor = panelAnchor ?? {
+                let w = NSWindow(contentRect: rect, styleMask: .borderless, backing: .buffered, defer: false)
+                w.isOpaque = false; w.backgroundColor = .clear; w.hasShadow = false
+                w.ignoresMouseEvents = true; w.isReleasedWhenClosed = false
+                w.level = .statusBar; w.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
+                panelAnchor = w
+                return w
+            }()
+            anchor.setFrame(rect, display: false)
+            anchor.orderFrontRegardless()
+            if let v = anchor.contentView { popover?.show(relativeTo: v.bounds, of: v, preferredEdge: .minY) }
+        } else {
+            popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+        button.highlight(true)
         popover?.contentViewController?.view.window?.makeKey()
         // 다른 앱을 누르면 닫는다 (메뉴 막대 앱은 앞에 나서지 않으므로 직접 지켜본다)
         outsideClick = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.closePanel() }
@@ -2284,9 +2368,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let m = outsideClick { NSEvent.removeMonitor(m); outsideClick = nil }
     }
 
+    /// 날씨: 0 끔, 1 아이콘, 2 온도와 함께. 켜면 고른 아이콘 대신 날씨가 보인다.
+    var weatherMode: Int { defaults.integer(forKey: "weatherMode") }
+
     func selectMark(_ id: String) {
         guard MarkLibrary.shared.contains(id) else { return }
         defaults.set(id, forKey: "menuMark")
+        if !uiPreview { defaults.set(0, forKey: "weatherMode") }   // 아이콘을 고르면 그 아이콘을 보여 준다 (날씨는 끈다)
         refreshIcon()
     }
 
@@ -2366,8 +2454,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationWillTerminate(_ notification: Notification) { ActivityLog.shared.flush() }
 
     @objc func openPagePalette() {
-        // 메뉴를 닫은 뒤 Figma 화면 위에 띄운다.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.pages.openPalette() }
+        // 메뉴를 닫은 뒤 Figma 화면 위에 띄운다. 다른 앱이 앞에 있으면 먼저 Figma를 앞으로 가져온다
+        // (그러지 않으면 이동 창이 다른 앱 창 뒤에 묻혔다). Figma가 앞으로 온 것을 확인한 뒤에 연다.
+        guard let figma = NSRunningApplication.runningApplications(withBundleIdentifier: figmaBundleID).first else { return }
+        if figma.isActive {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.pages.openPalette() }
+            return
+        }
+        figma.activate(options: [])
+        func openWhenFront(_ tries: Int) {
+            if figma.isActive || tries == 0 { scheduleTimer(); pages.openPalette(); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { openWhenFront(tries - 1) }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { openWhenFront(20) }
     }
 
     @objc func togglePageChip() {
@@ -2448,8 +2547,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guideWindow = w
     }
 
+    /// 설정 창 (SettingsWindow.swift). 패널의 "설정…"(⌘,)으로 연다. 크기는 고정이다.
+    @objc func showSettings() {
+        syncMenuModel()
+        if settingsWindow == nil { wireMenuActions() }      // 패널을 한 번도 열지 않았을 때도 동작이 이어지도록
+        NSApp.activate(ignoringOtherApps: true)
+        if let w = settingsWindow {
+            if w.isMiniaturized { w.deminiaturize(nil) }
+            w.makeKeyAndOrderFront(nil)
+            return
+        }
+        let host = NSHostingController(rootView: SettingsView(model: menuModel, close: { [weak self] in self?.settingsWindow?.close() }))
+        if #available(macOS 13.0, *) { host.sizingOptions = [] }
+        let w = NSWindow(contentViewController: host)
+        w.title = L("Layerhover 설정", "Layerhover Settings")
+        w.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        w.titlebarAppearsTransparent = true
+        w.titleVisibility = .hidden
+        w.setContentSize(SettingsStyle.size)
+        w.contentMinSize = SettingsStyle.size
+        w.contentMaxSize = SettingsStyle.size
+        w.standardWindowButton(.zoomButton)?.isEnabled = false
+        w.isReleasedWhenClosed = false
+        w.delegate = self
+        w.center()
+        w.setFrameAutosaveName("LayerhoverSettings")
+        w.makeKeyAndOrderFront(nil)
+        settingsWindow = w
+    }
+
+    /// 설정 창으로 돌아올 때마다 값을 다시 읽는다 (시스템 설정에서 권한을 켜고 왔거나, 로그인 항목을 밖에서 바꿨을 수 있다)
+    func windowDidBecomeKey(_ notification: Notification) {
+        if let w = notification.object as? NSWindow, w === settingsWindow { syncMenuModel() }
+    }
+
     func windowWillClose(_ notification: Notification) {
         if (notification.object as? NSWindow) === guideWindow { guideWindow = nil }
+        if (notification.object as? NSWindow) === settingsWindow { settingsWindow = nil }
     }
 
     @objc func quit() { NSApp.terminate(nil) }
@@ -2537,7 +2671,8 @@ if args.contains("--render-summary"), let i = args.firstIndex(of: "--render-summ
     exit(0)
 }
 if let i = args.firstIndex(of: "--render-menu"), args.count > i + 1 {
-    // 화면 확인용: 메뉴 패널을 PNG로 저장한다. --state running|paused|nofigma|untrusted|settings|blocked, --dark
+    // 화면 확인용: 메뉴 패널을 PNG로 저장한다. --state running|paused|nofigma|untrusted|settings|blocked, --dark, --weather, --mark <id>
+    //  --settings [reveal|pages|general|about] 이면 패널 대신 설정 창을 그린다 (state settings 는 깜빡임 가리기의 권한 경고를 보여 준다)
     _ = NSApplication.shared
     let state = args.firstIndex(of: "--state").flatMap { args.count > $0 + 1 ? args[$0 + 1] : nil } ?? "running"
     let m = MenuModel()
@@ -2545,10 +2680,17 @@ if let i = args.firstIndex(of: "--render-menu"), args.count > i + 1 {
     m.marks = MarkLibrary.shared.marks
     m.selectedMark = args.firstIndex(of: "--mark").flatMap { args.count > $0 + 1 ? args[$0 + 1] : nil } ?? MarkLibrary.defaultID
     m.enabled = state != "paused"; m.figmaRunning = state != "nofigma"; m.trusted = state != "untrusted"
-    m.settingsOpen = state == "settings"
     if state == "blocked" { m.motionBlocked = L("macOS '동작 줄이기'가 켜져 있어 멈춰 있어요", "Paused because Reduce Motion is on") }
     if state == "settings" { m.coverPanel = true; m.coverNeedsPermission = true }
-    renderPNG(MenuPanelView(model: m).background(Color(nsColor: .windowBackgroundColor)), to: args[i + 1], dark: args.contains("--dark"))
+    if args.contains("--weather") { m.weatherMode = 2; m.weatherStatus = "4° 맑음 · 오후 12:57에 받음"; m.weatherTemp = 4; MarkLibrary.shared.weatherMark = "wx-clear" }
+    if args.contains("--weather-denied") { m.weatherMode = 1; m.weatherStatus = L("위치 권한이 꺼져 있어요", "Location access is off"); m.weatherDenied = true }
+    if let s = args.firstIndex(of: "--settings") {
+        let name = args.count > s + 1 ? args[s + 1] : ""
+        m.settingsPane = SettingsPane(rawValue: name) ?? .reveal
+        renderPNG(SettingsView(model: m, rendering: true), to: args[i + 1], dark: args.contains("--dark"))
+    } else {
+        renderPNG(MenuPanelView(model: m).background(Color(nsColor: .windowBackgroundColor)), to: args[i + 1], dark: args.contains("--dark"))
+    }
     exit(0)
 }
 if let i = args.firstIndex(of: "--render-welcome"), args.count > i + 1 {
@@ -2560,6 +2702,11 @@ if let i = args.firstIndex(of: "--render-welcome"), args.count > i + 1 {
     renderPNG(WelcomeView(model: g, demoPhase: phase, openSettings: {}, close: {}).background(Color(nsColor: .windowBackgroundColor)),
               to: args[i + 1], dark: args.contains("--dark"))
     exit(0)
+}
+// 업데이트 서명 검사 시험: 이 앱과 같은 인증서로 서명된 앱이면 0으로 끝난다
+if let i = args.firstIndex(of: "--verify-update"), args.count > i + 1 {
+    let ok = Updater.sameSigner(URL(fileURLWithPath: args[i + 1]))
+    print(ok ? "same signer" : "different signer"); exit(ok ? 0 : 1)
 }
 if args.contains("--self-test") {
     exit(runSelfTests() ? 0 : 1)

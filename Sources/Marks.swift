@@ -33,7 +33,7 @@ enum MarkAsset {
 
 final class MarkLibrary {
     static let defaultID = "buddha"
-    /// "날씨"는 한 칸으로 보이지만 실제 그림은 지금 날씨에 맞는 wx-* 장면이다 (weatherMark).
+    /// "날씨"는 고르기 칸에 없고 패널의 "날씨" 줄로 켠다. 켜면 고른 아이콘 대신 지금 날씨의 wx-* 장면이 보인다 (weatherMark).
     static let weatherID = "weather"
     var weatherMark = "wx-partly"
     static let shared = MarkLibrary(directory: Bundle.main.resourceURL?.appendingPathComponent("Marks"))
@@ -62,9 +62,6 @@ final class MarkLibrary {
             return MarkInfo(id: id, ko: ko, en: en, frames: frames)
         }
         marks = all.filter { !$0.id.hasPrefix("wx-") }
-        if let w = all.first(where: { $0.id == weatherMark }) {
-            marks.append(MarkInfo(id: MarkLibrary.weatherID, ko: "날씨", en: "Weather", frames: w.frames))
-        }
         if marks.isEmpty { report("manifest", "manifest.json") }
     }
 
@@ -72,7 +69,7 @@ final class MarkLibrary {
     /// "weather" → 지금 날씨 장면의 ID. 나머지는 그대로.
     func resolve(_ id: String) -> String { id == MarkLibrary.weatherID ? weatherMark : id }
     func info(_ id: String) -> MarkInfo? { let r = resolve(id); return all.first { $0.id == r } }
-    func contains(_ id: String) -> Bool { info(id) != nil }
+    func contains(_ id: String) -> Bool { marks.contains { $0.id == id } }   // 고르기 칸에 있는 아이콘만
 
     /// 아이콘의 장면. 고른 아이콘의 것만 메모리에 둔다 (기본 아이콘은 대체용으로 함께 둔다).
     func asset(_ id: String) -> MarkAsset {

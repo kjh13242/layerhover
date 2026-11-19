@@ -16,6 +16,8 @@ struct Spec { let id: String; let ko: String; let en: String; var frames: Int; l
 // maxStep: 이웃 장면 사이에 허용하는 가장 큰 이동(pt). 낚아채기처럼 빠른 동작이 있는 아이콘은 크게 둔다.
 //          0 이면 재지 않는다 (눈송이나 불빛처럼 나타났다 사라지는 것이 있는 아이콘).
 // fine: 낚싯줄·별자리 선·연기처럼 가는 요소가 그림의 일부인 아이콘 (가는 곳·무게 하한 검사를 하지 않는다)
+/// Figma 격자에는 남아 있지만 앱에서 뺀 아이콘 (북두칠성은 메뉴 막대에서 잘 안 보여 학으로 바꿨다)
+let RETIRED: Set<String> = ["dipper"]
 var SPEC: [Spec] = [
     .init(id: "buddha", ko: "반가사유상", en: "Pensive Bodhisattva", frames: 40, hasBase: true, maxStep: 1.2, fine: false),
     .init(id: "wave", ko: "파도", en: "Waves", frames: 48, hasBase: false, maxStep: 2.0, fine: false),
@@ -187,26 +189,28 @@ case "check":
 case "bake":
     guard args.count >= 4 else { print("출력 폴더가 필요합니다"); exit(2) }
     let out = URL(fileURLWithPath: args[3])
-    // 날씨 장면(wx-*)은 Figma를 거치지 않고 motion-lab bake 로 굽는다. 그것은 남겨 둔다.
+    // Figma를 거치지 않고 motion-lab bake 로 구운 장면(날씨 wx-*, 학, 풍경)은 남겨 둔다. 앱에서 뺀 아이콘(RETIRED)은 굽지 않는다.
     var keep: [[String: Any]] = []
     if let d = try? Data(contentsOf: out.appendingPathComponent("manifest.json")),
        let j = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any], let m = j["marks"] as? [[String: Any]] {
-        keep = m.filter { ($0["id"] as? String)?.hasPrefix("wx-") == true }
+        keep = m.filter { e in let id = e["id"] as? String ?? ""; return !SPEC.contains { $0.id == id } }
     }
-    for f in (try? FileManager.default.contentsOfDirectory(atPath: out.path)) ?? [] where !f.hasPrefix("wx-") {
-        try? FileManager.default.removeItem(at: out.appendingPathComponent(f))
+    let keepIDs = Set(keep.compactMap { $0["id"] as? String })
+    for f in (try? FileManager.default.contentsOfDirectory(atPath: out.path)) ?? [] {
+        let id = f.replacingOccurrences(of: "@2x.png", with: "").replacingOccurrences(of: ".png", with: "")
+        if !keepIDs.contains(id) { try? FileManager.default.removeItem(at: out.appendingPathComponent(f)) }
     }
     try! FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
     var bytes = 0
     for scale in [1, 2] {
         let r = raster(scale)
-        for (row, sp) in SPEC.enumerated() {
+        for (row, sp) in SPEC.enumerated() where !RETIRED.contains(sp.id) {
             let data = strip(r, row: row, frames: sp.frames, scale: scale)
             try! data.write(to: out.appendingPathComponent(scale == 1 ? "\(sp.id).png" : "\(sp.id)@2x.png"))
             bytes += data.count
         }
     }
-    let manifest: [String: Any] = ["version": 1, "fps": FPS, "marks": SPEC.map { ["id": $0.id, "ko": $0.ko, "en": $0.en, "frames": $0.frames] } + keep]
+    let manifest: [String: Any] = ["version": 1, "fps": FPS, "marks": SPEC.filter { !RETIRED.contains($0.id) }.map { ["id": $0.id, "ko": $0.ko, "en": $0.en, "frames": $0.frames] } + keep]
     let json = try! JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
     try! json.write(to: out.appendingPathComponent("manifest.json"))
     print("구웠습니다: \(SPEC.count)개 아이콘, \(SPEC.map(\.frames).reduce(0, +))장면, \((bytes + json.count) / 1024)KB → \(out.path)")

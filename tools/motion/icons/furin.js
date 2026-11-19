@@ -1,0 +1,155 @@
+// 풍경 (Furin, Japanese wind chime) — final, from concept A "Edo bell" (larger bell, wider and longer strip,
+// calmer gust, a clearer ring glint).
+// A blown-glass bell shaped like a sphere with its lower third cut away (the classic Edo furin: widest at
+// the equator, the rim tucked in, a tiny flared lip). Glass is suggested by one tapered highlight cut on
+// the upper-left shoulder. Below the rim hangs the clapper (zetsu), then a thread and a long paper tanzaku
+// with a brushed verse carved as a tapered slit.
+// Motion: a three-link chain. The bell sways a little about its cord, the clapper swings a bit more inside
+// it, the strip swings most, bends against its swing and twists now and then. Halfway through, a gust
+// leans the strip downwind, the clapper strikes the rim and a small glint rings out beside the bell.
+var ICON = (function () {
+  var STYLE = 'solid';                // 'solid' | 'glass' | 'open'
+  var FRAMES = 56;
+  var HANG = [9, 1.35];                // cord hook
+  var R = 4.25, CY = 6.15, RIM_A = 27; // bell sphere, rim angle below the equator (deg)
+  var CX = 9;
+  var RIM_X = R * Math.cos(RIM_A * Math.PI / 180), RIM_Y = CY + R * Math.sin(RIM_A * Math.PI / 180);
+  var LIP = 0.38;                     // lip depth
+  var P = [9, 3.6];                   // clapper pivot inside the bell
+  var CL_Y = RIM_Y + LIP + 0.72;      // clapper top
+  var CL_H = 0.95, CL_W = 2.2;
+  var Q = [9, CL_Y + CL_H];           // strip thread pivot (bottom of the clapper)
+  var ST_TOP = Q[1] + 0.7, ST_W = 3.0, ST_BOT = 16.6;
+
+  // cubic approximation of a circular arc, a0 → a1 in degrees (0 = right, 90 = down)
+  function arcC(cx, cy, r, a0, a1) {
+    var n = Math.ceil(Math.abs(a1 - a0) / 60), d = '';
+    for (var i = 0; i < n; i++) {
+      var b0 = (a0 + (a1 - a0) * i / n) * Math.PI / 180, b1 = (a0 + (a1 - a0) * (i + 1) / n) * Math.PI / 180;
+      var k = 4 / 3 * Math.tan((b1 - b0) / 4);
+      var p0 = [cx + r * Math.cos(b0), cy + r * Math.sin(b0)], p3 = [cx + r * Math.cos(b1), cy + r * Math.sin(b1)];
+      var p1 = [p0[0] - k * r * Math.sin(b0), p0[1] + k * r * Math.cos(b0)], p2 = [p3[0] + k * r * Math.sin(b1), p3[1] - k * r * Math.cos(b1)];
+      d += ' C' + f(p1[0]) + ' ' + f(p1[1]) + ' ' + f(p2[0]) + ' ' + f(p2[1]) + ' ' + f(p3[0]) + ' ' + f(p3[1]);
+    }
+    return d;
+  }
+
+  function bell() {
+    // sphere from the lower-left rim over the top to the lower-right rim, then a small flared lip
+    var a0 = 180 - RIM_A, a1 = 360 + RIM_A, x0 = CX - RIM_X, x1 = CX + RIM_X;
+    var d = 'M' + f(x0) + ' ' + f(RIM_Y) + arcC(CX, CY, R, a0, a1);
+    if (STYLE === 'open') {
+      // seen a little from below: the rim is an ellipse
+      d += ' C' + f(x1 + 0.25) + ' ' + f(RIM_Y + 0.3) + ' ' + f(x1 + 0.1) + ' ' + f(RIM_Y + LIP + 0.5) + ' ' + f(CX) + ' ' + f(RIM_Y + LIP + 0.55);
+      d += ' C' + f(x0 - 0.1) + ' ' + f(RIM_Y + LIP + 0.5) + ' ' + f(x0 - 0.25) + ' ' + f(RIM_Y + 0.3) + ' ' + f(x0) + ' ' + f(RIM_Y) + 'Z';
+    } else {
+      d += ' C' + f(x1 + 0.12) + ' ' + f(RIM_Y + 0.12) + ' ' + f(x1 + 0.3) + ' ' + f(RIM_Y + LIP - 0.1) + ' ' + f(x1 + 0.32) + ' ' + f(RIM_Y + LIP);
+      d += ' L' + f(x0 - 0.32) + ' ' + f(RIM_Y + LIP);
+      d += ' C' + f(x0 - 0.3) + ' ' + f(RIM_Y + LIP - 0.1) + ' ' + f(x0 - 0.12) + ' ' + f(RIM_Y + 0.12) + ' ' + f(x0) + ' ' + f(RIM_Y) + 'Z';
+    }
+    return d;
+  }
+  // the knob the cord ties into
+  function knob() { return rectPath(CX - 0.6, CY - R - 0.4, 1.2, 0.75, 0.25); }
+  // tapered highlight: a crescent on the upper-left shoulder
+  function highlight() {
+    return ribbon(arcPts(CX, CY, R - 1.15, 190, 252, 10), function (s) { return 1.0 * Math.pow(Math.sin(Math.PI * s), 0.8); });
+  }
+  // glass shell: the inside of the bell (concept B)
+  function inner() {
+    var r = R - 1.0, a = RIM_A + 6, x0 = CX - r * Math.cos(a * Math.PI / 180), y0 = CY + r * Math.sin(a * Math.PI / 180);
+    return 'M' + f(x0) + ' ' + f(y0) + arcC(CX, CY, r, 180 - a, 360 + a) + ' L' + f(CX + RIM_X - 0.75) + ' ' + f(RIM_Y + LIP + 0.6) + ' L' + f(CX - RIM_X + 0.75) + ' ' + f(RIM_Y + LIP + 0.6) + 'Z';
+  }
+  // rim opening seen from below (concept C)
+  function opening() { return ellipsePath(CX, RIM_Y + 0.12, RIM_X - 0.75, 0.38, 0); }
+  // clapper: a short glass rod with softened ends
+  function clapper(y) {
+    return 'M' + f(CX - CL_W / 2 + 0.2) + ' ' + f(y) + ' L' + f(CX + CL_W / 2 - 0.2) + ' ' + f(y) +
+      ' C' + f(CX + CL_W / 2 + 0.1) + ' ' + f(y) + ' ' + f(CX + CL_W / 2 + 0.1) + ' ' + f(y + CL_H) + ' ' + f(CX + CL_W / 2 - 0.2) + ' ' + f(y + CL_H) +
+      ' L' + f(CX - CL_W / 2 + 0.2) + ' ' + f(y + CL_H) +
+      ' C' + f(CX - CL_W / 2 - 0.1) + ' ' + f(y + CL_H) + ' ' + f(CX - CL_W / 2 - 0.1) + ' ' + f(y) + ' ' + f(CX - CL_W / 2 + 0.2) + ' ' + f(y) + 'Z';
+  }
+  // tanzaku: a long paper strip, crisp corners
+  // The long sides are subdivided so that the paper transform below curves them (a plain rectPath has one
+  // straight segment per side, which a bend can only shear into a stiff parallelogram).
+  function strip() {
+    var x0 = CX - ST_W / 2, x1 = CX + ST_W / 2, y0 = ST_TOP, y1 = ST_BOT, r = 0.25, k = 0.4477, N = 10, i, d;
+    d = 'M' + f(x0 + r) + ' ' + f(y0) + ' L' + f(x1 - r) + ' ' + f(y0) +
+      ' C' + f(x1 - r * k) + ' ' + f(y0) + ' ' + f(x1) + ' ' + f(y0 + r * k) + ' ' + f(x1) + ' ' + f(y0 + r);
+    for (i = 1; i <= N; i++) d += ' L' + f(x1) + ' ' + f(lerp(y0 + r, y1 - r, i / N));
+    d += ' C' + f(x1) + ' ' + f(y1 - r * k) + ' ' + f(x1 - r * k) + ' ' + f(y1) + ' ' + f(x1 - r) + ' ' + f(y1) +
+      ' L' + f(x0 + r) + ' ' + f(y1) +
+      ' C' + f(x0 + r * k) + ' ' + f(y1) + ' ' + f(x0) + ' ' + f(y1 - r * k) + ' ' + f(x0) + ' ' + f(y1 - r);
+    for (i = N - 1; i >= 0; i--) d += ' L' + f(x0) + ' ' + f(lerp(y0 + r, y1 - r, i / N));
+    return d + ' C' + f(x0) + ' ' + f(y0 + r * k) + ' ' + f(x0 + r * k) + ' ' + f(y0) + ' ' + f(x0 + r) + ' ' + f(y0) + 'Z';
+  }
+  // paper: the strip curves along its length (trailing its swing) and its free end flutters on its own.
+  // a = deflection of the whole length (grows with s²), b = extra flick of the lower end (grows with s⁴).
+  function paper(a, b) {
+    var L = ST_BOT - ST_TOP;
+    return function (x, y) {
+      var s = clamp((y - ST_TOP) / L, 0, 1.1);
+      return [x + a * s * s + b * s * s * s * s, y];
+    };
+  }
+  // the brushed verse: a tapered slit that swells and thins like one stroke of ink
+  function verse() {
+    return ribbon([[CX + 0.05, ST_TOP + 1.2], [CX - 0.05, ST_TOP + 2.6], [CX + 0.05, ST_BOT - 1.3]], function (s) {
+      return 0.6 * Math.pow(Math.sin(Math.PI * (0.12 + 0.88 * s)), 0.6) * (1 - 0.35 * s);
+    });
+  }
+
+  // ── motion ─────────────────────────────────────────────────────────────────────────────────────
+  function gust(t) { return bump(t, 0.34, 0.5, 0.64, 0.92, smooth); }
+  function pose(t) {
+    var g = gust(t), e = 0.72 + 0.16 * noise(t, 4, 2) + 0.32 * g;
+    var ph = TAU * (3 * t + 0.13) + 0.35 * noise(t, 3, 2);
+    // wind blows from the left: the chain leans right (negative angles) while it gusts
+    var bellA = -3.6 * e * Math.sin(ph) - 2.0 * g;
+    // the strike: the clapper kicks toward the rim; the strip, hanging on its thread, does not follow it
+    var kick = 5 * bump(t, 0.49, 0.555, 0.565, 0.64, smooth);
+    var clapA = -4.5 * e * Math.sin(ph - 0.5) - 1.5 * g + kick;
+    var stripA = -14 * e * Math.sin(ph - 1.15) - 8 * g - kick;
+    // bend of the strip: it trails its swing (minus its angular velocity) and flutters in the gust
+    var vel = -14 * e * Math.cos(ph - 1.15);
+    var bendv = 0.075 * vel;
+    // the free end flicks on its own, quicker than the swing, livelier in the gust
+    var flutter = (0.35 + 0.55 * g) * Math.sin(TAU * 7 * t + 0.4 * noise(t, 8, 2));
+    // twist: the strip turns a little edge-on now and then
+    var tw = 1 - 0.1 * smooth(0.5 + 0.5 * noise(t, 9, 2)) - 0.1 * g * (0.5 + 0.5 * Math.sin(TAU * 7 * t));
+    // ring: the clapper strikes the rim at the top of the gust
+    var ring = seg(t, 0.545, 0.57, easeOut) * (1 - seg(t, 0.57, 0.66, smooth));
+    return { bell: bellA, clap: clapA, strip: stripA, bend: bendv, flut: flutter, tw: tw, ring: ring };
+  }
+
+  function at(t) {
+    var p = pose(t), s = '';
+    var B = rot(HANG[0], HANG[1], p.bell);
+    var C = chain(rot(P[0], P[1], p.clap), B);
+    var S = chain(scaleAt(CX, 0, p.tw, 1), paper(p.bend, p.flut), rot(Q[0], Q[1], p.strip), C);
+    // cord
+    s += hairline('M' + HANG[0] + ' ' + HANG[1] + ' L' + CX + ' ' + f(CY - R), 0.65, B);
+    s += ink(knob(), B) + ink(bell(), B);
+    if (STYLE === 'solid') s += cut(highlight(), B);
+    if (STYLE === 'glass') s += cut(inner(), B) + front(clapper(RIM_Y - 1.6), C) + frontLine('M' + CX + ' ' + f(P[1] + 0.2) + ' L' + CX + ' ' + f(RIM_Y - 1.6), 0.6, C);
+    if (STYLE === 'open') s += cut(opening(), B) + cut(highlight(), B);
+    // clapper below the rim, kept clear of the glass by a clean gap
+    if (STYLE !== 'glass') {
+      s += cutAround(clapper(CL_Y), 0.7, C) + front(clapper(CL_Y), C);
+      s += frontLine('M' + CX + ' ' + f(RIM_Y) + ' L' + CX + ' ' + f(CL_Y), 0.6, C);
+    } else {
+      s += frontLine('M' + CX + ' ' + f(RIM_Y - 0.6) + ' L' + CX + ' ' + f(CL_Y + CL_H), 0.6, C);
+    }
+    // thread and strip
+    s += hairline('M' + Q[0] + ' ' + f(Q[1] - 0.2) + ' L' + Q[0] + ' ' + f(ST_TOP + 0.3), 0.6, S);
+    s += ink(strip(), S) + cut(verse(), S);
+    // ring: a small glint beside the bell on the side the clapper strikes
+    // it rings out at once, then dies away and fades
+    if (p.ring > 0.08) {
+      var glint = sparkle(3.0, 7.4, 0.7 + 1.2 * p.ring, { inner: 0.2, long: 0.6 });
+      s += p.ring > 0.3 ? ink(glint) : fade(glint);
+    }
+    return s;
+  }
+  return { id: "furin", frames: FRAMES, at: at };
+})();

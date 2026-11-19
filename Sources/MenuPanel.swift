@@ -6,10 +6,11 @@
 import AppKit
 import SwiftUI
 
+/// 레이아웃은 4pt 격자를 따른다: 여백·간격·크기·모서리는 4의 배수. (예외: 선택 막대·스위치 안쪽의 2pt, 1pt 구분선, 환영 창 그림)
 enum LH {
     static let accent = Color(red: 0.05, green: 0.6, blue: 1.0)          // Figma 선택 파랑 #0D99FF
-    static let panelWidth: CGFloat = 328
-    static let pad: CGFloat = 20
+    static let panelWidth: CGFloat = 332
+    static let pad: CGFloat = 16
     static func fill(_ o: Double) -> Color { Color.primary.opacity(o) }
     /// 선택 막대에서 고른 칸: 밝은 테마에서는 흰 칸, 어두운 테마에서는 바탕보다 밝은 칸
     static let segmentSelected = Color(nsColor: NSColor(name: nil) { a in
@@ -62,18 +63,22 @@ private struct SpriteRepresentable: NSViewRepresentable {
 struct LHToggle: View {
     let isOn: Bool
     let label: String
+    var large = false
     let action: () -> Void
 
     var body: some View {
+        let w: CGFloat = large ? 36 : 30, h: CGFloat = large ? 21 : 18
         Button(action: action) {
             Capsule()
                 .fill(isOn ? LH.accent : LH.fill(0.18))
-                .frame(width: 30, height: 18)
+                .frame(width: w, height: h)
                 .overlay(alignment: isOn ? .trailing : .leading) {
-                    Circle().fill(Color.white).frame(width: 14, height: 14).padding(2)
+                    Circle().fill(Color.white).frame(width: h - 4, height: h - 4).padding(2)
                         .shadow(color: .black.opacity(0.2), radius: 1, y: 0.5)
                 }
                 .animation(.easeOut(duration: 0.15), value: isOn)
+                .frame(minWidth: 40, minHeight: 28, alignment: .trailing)     // 누를 수 있는 곳은 28pt 이상
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -86,6 +91,8 @@ struct LHSegmented: View {
     let options: [String]
     let selection: Int?
     let label: String
+    var height: CGFloat = 24
+    var fontSize: CGFloat = 11.5
     let action: (Int) -> Void
 
     var body: some View {
@@ -93,11 +100,12 @@ struct LHSegmented: View {
             ForEach(options.indices, id: \.self) { i in
                 Button { action(i) } label: {
                     Text(options[i])
-                        .font(.system(size: 11, weight: selection == i ? .semibold : .regular))
+                        .font(.system(size: fontSize, weight: selection == i ? .semibold : .regular))
                         .foregroundStyle(selection == i ? Color.primary : Color.secondary)
+                        .lineLimit(1)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 20)
-                        .background(RoundedRectangle(cornerRadius: 5)
+                        .frame(height: height)
+                        .background(RoundedRectangle(cornerRadius: 6)
                             .fill(selection == i ? LH.segmentSelected : Color.clear)
                             .shadow(color: .black.opacity(selection == i ? 0.14 : 0), radius: 1, y: 0.5))
                         .contentShape(Rectangle())
@@ -108,7 +116,7 @@ struct LHSegmented: View {
             }
         }
         .padding(2)
-        .background(RoundedRectangle(cornerRadius: 7).fill(LH.fill(0.07)))
+        .background(RoundedRectangle(cornerRadius: 8).fill(LH.fill(0.07)))
     }
 }
 
@@ -118,7 +126,7 @@ struct Keycap: View {
         Text(text)
             .font(.system(size: 10.5, weight: .medium, design: .rounded))
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 5).frame(height: 17)
+            .padding(.horizontal, 4).frame(height: 16)
             .background(RoundedRectangle(cornerRadius: 4).fill(LH.fill(0.07)))
             .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(LH.fill(0.08)))
     }
@@ -133,7 +141,7 @@ struct ToggleRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.system(size: 12.5)).fixedSize(horizontal: false, vertical: true)
                 if let note { Text(note).font(.system(size: 10.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             }
@@ -141,6 +149,7 @@ struct ToggleRow: View {
             LHToggle(isOn: isOn, label: title, action: action)
         }
         .frame(minHeight: 24)
+        .padding(.vertical, 4)
     }
 }
 
@@ -155,17 +164,33 @@ struct SectionTitle: View {
 /// 눌렀을 때와 마우스를 올렸을 때 바탕이 살짝 변하는 조용한 버튼
 struct QuietButtonStyle: ButtonStyle {
     var prominent = false
-    @State private var hovering = false
+    var flat = false        // 평소엔 바탕 없이, 마우스를 올리면 바탕이 생긴다 (패널 아래 줄)
     func makeBody(configuration: Configuration) -> some View {
+        QuietButtonBody(configuration: configuration, prominent: prominent, flat: flat)
+    }
+}
+
+private struct QuietButtonBody: View {
+    let configuration: ButtonStyle.Configuration
+    let prominent: Bool
+    let flat: Bool
+    @State private var hovering = false
+    var body: some View {
         configuration.label
             .background(RoundedRectangle(cornerRadius: 8)
                 .fill(prominent ? LH.accent.opacity(configuration.isPressed ? 0.8 : 1)
-                                : LH.fill(configuration.isPressed ? 0.14 : hovering ? 0.1 : 0.06)))
+                                : LH.fill(configuration.isPressed ? 0.14 : hovering ? 0.09 : flat ? 0 : 0.06)))
             .onHover { hovering = $0 }
     }
 }
 
 // MARK: - 메뉴 패널
+
+/// 설정 창의 칸 (SettingsWindow.swift)
+enum SettingsPane: String, CaseIterable, Identifiable {
+    case reveal, pages, general, about
+    var id: String { rawValue }
+}
 
 final class MenuModel: ObservableObject {
     @Published var trusted = true
@@ -175,10 +200,11 @@ final class MenuModel: ObservableObject {
     @Published var marks: [MarkInfo] = []
     @Published var selectedMark = MarkLibrary.defaultID
     @Published var animateMark = true
-    @Published var weatherOn = false
+    @Published var weatherMode = 0      // 0 끔, 1 아이콘, 2 온도와 함께
     @Published var weatherStatus = ""
     @Published var weatherDenied = false
-    @Published var weatherTemp = true
+    @Published var weatherTemp: Int?
+    @Published var weatherShowTemp = true     // 날씨를 고를 때 온도도 붙일지 (날씨를 꺼도 기억한다)
     @Published var motionBlocked: String? = nil       // 움직임이 켜져 있어도 멈춰 있는 이유 (동작 줄이기, 저전력)
     @Published var reveal: Int? = 1
     @Published var collapse: Int? = 1
@@ -190,7 +216,11 @@ final class MenuModel: ObservableObject {
     @Published var coverNeedsPermission = false
     @Published var workLog = true
     @Published var launchAtLogin = false
-    @Published var settingsOpen = false
+    @Published var settingsPane: SettingsPane = .reveal
+    @Published var autoUpdate = true
+    @Published var updateStatus = ""
+    @Published var updateVersion: String?       // 받을 수 있는 새 버전 (자동 설치를 껐을 때 패널에 알린다)
+    @Published var updateBusy = false
 
     struct Actions {
         var toggleEnabled: () -> Void = {}
@@ -199,7 +229,11 @@ final class MenuModel: ObservableObject {
         var showSummary: () -> Void = {}
         var selectMark: (String) -> Void = { _ in }
         var toggleAnimate: () -> Void = {}
+        var setWeatherMode: (Int) -> Void = { _ in }
         var setWeatherTemp: (Bool) -> Void = { _ in }
+        var checkUpdate: () -> Void = {}
+        var installUpdate: () -> Void = {}
+        var toggleAutoUpdate: () -> Void = {}
         var openLocationSettings: () -> Void = {}
         var setReveal: (Int) -> Void = { _ in }
         var setCollapse: (Int) -> Void = { _ in }
@@ -213,8 +247,8 @@ final class MenuModel: ObservableObject {
         var connectClaude: () -> Void = {}
         var showGuide: () -> Void = {}
         var showLog: () -> Void = {}
+        var showSettings: () -> Void = {}
         var quit: () -> Void = {}
-        var setSettingsOpen: (Bool) -> Void = { _ in }
     }
     var actions = Actions()
 
@@ -226,6 +260,8 @@ final class MenuModel: ObservableObject {
     }
 }
 
+/// 메뉴 막대 패널: 자주 쓰는 것만 담고, 높이가 바뀌지 않는다 (펼치고 접는 부분이 없다).
+/// 나머지 설정은 "설정…"(⌘,)으로 여는 창(SettingsWindow.swift)에 있다.
 struct MenuPanelView: View {
     @ObservedObject var model: MenuModel
     @State private var hoveredMark: String?
@@ -233,227 +269,241 @@ struct MenuPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            if !model.trusted { permissionCard.padding(.top, 14) }
-            quickActions.padding(.top, 14)
+            if !model.trusted { permissionCard.padding(.top, 16) }
+            quickActions.padding(.top, 16)
             divider
-            iconPicker
-            divider
-            settingsToggle
-            if model.settingsOpen { settings.padding(.top, 12) }
+            menuBar
             divider
             footer
         }
-        .padding(LH.pad)
+        .padding(.horizontal, LH.pad).padding(.top, LH.pad).padding(.bottom, 12)
         .frame(width: LH.panelWidth)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var divider: some View {
-        Rectangle().fill(LH.fill(0.08)).frame(height: 1).padding(.vertical, 14)
+        Rectangle().fill(LH.fill(0.08)).frame(height: 1).padding(.vertical, 16)
     }
 
     // 머리: 지금 아이콘, 이름과 상태, 켜고 끄는 스위치
     private var header: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 10).fill(LH.fill(0.06)).frame(width: 44, height: 44)
+            RoundedRectangle(cornerRadius: 12).fill(LH.fill(0.06)).frame(width: 44, height: 44)
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(LH.fill(0.05)))
                 .overlay {
                     if model.trusted {
-                        MarkImage(id: model.selectedMark, playing: model.enabled && model.animateMark && model.motionBlocked == nil, size: 27,
+                        MarkImage(id: shownMark, playing: model.enabled && model.animateMark && model.motionBlocked == nil, size: 26,
                                   color: model.enabled ? .labelColor : .tertiaryLabelColor)
                     } else {
                         Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 18)).foregroundStyle(.orange)
                     }
                 }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Layerhover").font(.system(size: 15, weight: .semibold))
-                HStack(spacing: 5) {
-                    Circle().fill(model.status.color).frame(width: 7, height: 7)
+                HStack(spacing: 4) {
+                    Circle().fill(model.status.color).frame(width: 8, height: 8)
                     Text(model.status.text).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .accessibilityElement(children: .combine)
             }
             Spacer(minLength: 4)
             if model.trusted {
-                LHToggle(isOn: model.enabled, label: L("Layerhover 동작", "Layerhover active"), action: model.actions.toggleEnabled)
+                LHToggle(isOn: model.enabled, label: L("Layerhover 동작", "Layerhover active"), large: true, action: model.actions.toggleEnabled)
                     .help(model.enabled ? L("일시 정지", "Pause") : L("다시 켜기", "Resume"))
             }
         }
     }
 
     private var permissionCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L("Figma의 접기·펼치기 버튼을 대신 누르려면 손쉬운 사용 권한이 필요해요. 켜면 Layerhover가 스스로 다시 시작해요.",
-                   "Layerhover needs Accessibility permission to press Figma's minimize and expand buttons. It restarts itself once you turn it on."))
-                .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L("손쉬운 사용 권한을 켜 주세요", "Turn on Accessibility permission"))
+                    .font(.system(size: 12.5, weight: .semibold))
+                Text(L("Figma 패널을 대신 접고 펼치는 데만 써요.\n켜면 Layerhover가 스스로 다시 시작해요.",
+                       "Used only to fold and reveal Figma's panels. Layerhover restarts itself once it's on."))
+                    .font(.system(size: 11.5)).foregroundStyle(.secondary).lineSpacing(1.5).fixedSize(horizontal: false, vertical: true)
+            }
             Button(action: model.actions.openAccessibility) {
                 Text(L("손쉬운 사용 설정 열기", "Open Accessibility Settings"))
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-                    .frame(maxWidth: .infinity).frame(height: 28)
+                    .frame(maxWidth: .infinity).frame(height: 32)
             }
             .buttonStyle(QuietButtonStyle(prominent: true))
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.1)))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.orange.opacity(0.25)))
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.orange.opacity(0.25)))
     }
 
+    // 자주 하는 두 가지: 페이지로 이동, 작업 기록
     private var quickActions: some View {
-        HStack(spacing: 8) {
+        let canGo = model.trusted && model.figmaRunning
+        return HStack(spacing: 8) {
             Button(action: model.actions.openPalette) {
-                HStack(spacing: 6) {
-                    Image(systemName: "doc.text.magnifyingglass").font(.system(size: 12))
-                    Text(L("페이지로 이동", "Go to Page")).font(.system(size: 12, weight: .medium))
-                    Spacer(minLength: 0)
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.text.magnifyingglass").font(.system(size: 13)).frame(width: 16)
+                    Text(L("페이지로 이동", "Go to Page")).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
+                    Spacer(minLength: 4)
                     Keycap(text: "⌃⌥P")
                 }
-                .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(height: 32)
+                .padding(.horizontal, 12).frame(maxWidth: .infinity).frame(height: 36)
+                .contentShape(Rectangle())
             }
             .buttonStyle(QuietButtonStyle())
-            .disabled(!model.trusted || !model.figmaRunning)
-            .opacity(model.trusted && model.figmaRunning ? 1 : 0.45)
+            .disabled(!canGo)
+            .opacity(canGo ? 1 : 0.45)
+            .help(canGo ? L("이름으로 찾아 페이지를 옮겨요", "Find a page by name and jump to it") : L("Figma가 켜져 있을 때 쓸 수 있어요", "Available while Figma is open"))
             Button(action: model.actions.showSummary) {
-                HStack(spacing: 6) {
-                    Image(systemName: "chart.bar.xaxis").font(.system(size: 12))
-                    Text(L("이번 주 작업", "This Week")).font(.system(size: 12, weight: .medium))
+                HStack(spacing: 8) {
+                    Image(systemName: "chart.bar.xaxis").font(.system(size: 13)).frame(width: 16)
+                    Text(L("작업 기록", "Activity")).font(.system(size: 12.5, weight: .medium)).lineLimit(1)
                 }
-                .padding(.horizontal, 10).frame(height: 32)
+                .padding(.horizontal, 12).frame(height: 36)
+                .contentShape(Rectangle())
             }
             .buttonStyle(QuietButtonStyle())
+            .help(L("이번 주 Figma 작업 시간을 봐요", "See this week's time in Figma"))
         }
     }
 
-    // 아이콘 고르기: 7칸 격자. 마우스를 올리면 그 아이콘이 움직이고 이름이 아래에 나온다.
-    private var iconPicker: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                SectionTitle(text: L("메뉴 막대 아이콘", "Menu Bar Icon"))
-                Spacer()
-                Text(model.marks.first { $0.id == (hoveredMark ?? model.selectedMark) }?.name ?? "")
-                    .font(.system(size: 11)).foregroundStyle(hoveredMark == nil ? .secondary : .primary)
-            }
+    /// 메뉴 막대에 지금 보이는 것: 날씨를 켰으면 날씨, 아니면 고른 아이콘
+    private var shownMark: String { model.weatherMode > 0 ? MarkLibrary.weatherID : model.selectedMark }
+
+    // 메뉴 막대 꾸미기: 아이콘 격자, 날씨는 격자 맨 아래의 긴 칸. (아이콘 움직이기는 설정 창 "일반"에 있다)
+    // 제목은 두지 않는다: 지금 메뉴 막대에 있는 아이콘이 격자에서 하이라이트되어 있어 그것으로 충분하다.
+    // 날씨를 켜면 격자의 선택이 풀리고, 아이콘을 누르면 날씨가 꺼진다.
+    private var menuBar: some View {
+        VStack(alignment: .leading, spacing: 0) {
             if model.marks.isEmpty {
                 Text(L("아이콘을 불러오지 못했어요", "Couldn't load the icons"))
-                    .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                    .font(.system(size: 11.5)).foregroundStyle(.secondary).frame(height: 80)
             } else {
-                LazyVGrid(columns: Array(repeating: GridItem(.fixed(36), spacing: 6), count: 7), alignment: .leading, spacing: 6) {
-                    ForEach(model.marks) { m in
-                        let selected = m.id == model.selectedMark
-                        Button { model.actions.selectMark(m.id) } label: {
-                            MarkImage(id: m.id, playing: hoveredMark == m.id, size: 20,
-                                      color: selected ? NSColor(LH.accent) : .labelColor)
-                                .frame(width: 36, height: 36)
-                                .background(RoundedRectangle(cornerRadius: 8)
-                                    .fill(selected ? LH.accent.opacity(0.14) : LH.fill(hoveredMark == m.id ? 0.1 : 0.05)))
-                                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? LH.accent : .clear, lineWidth: 1.5))
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .onHover { inside in if inside { hoveredMark = m.id } else if hoveredMark == m.id { hoveredMark = nil } }
-                        .accessibilityLabel(m.name)
-                        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-                    }
-                }
+                grid
             }
-            if model.weatherOn { weatherOptions }
-            ToggleRow(title: L("아이콘 움직임", "Animate icon"), note: model.animateMark ? model.motionBlocked : nil,
-                      isOn: model.animateMark, action: model.actions.toggleAnimate)
+            weather.padding(.top, 8)
         }
     }
 
-    // 날씨 아이콘을 골랐을 때만: 보이는 방식, 지금 상태, 권한 안내
-    private var weatherOptions: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
-                Text(L("날씨 표시", "Weather")).font(.system(size: 12.5))
-                Spacer(minLength: 8)
-                LHSegmented(options: [L("아이콘만", "Icon"), L("온도와 함께", "With temp")], selection: model.weatherTemp ? 1 : 0,
-                            label: L("날씨 표시", "Weather"), action: { model.actions.setWeatherTemp($0 == 1) }).frame(width: 168)
-            }
-            HStack(spacing: 6) {
-                Text(model.weatherStatus).font(.system(size: 10.5)).foregroundStyle(.secondary)
-                if model.weatherDenied {
-                    Button(L("시스템 설정 열기", "Open Settings"), action: model.actions.openLocationSettings)
-                        .buttonStyle(.link).font(.system(size: 10.5))
-                }
-            }
-        }
-    }
-
-    private var settingsToggle: some View {
-        Button { model.actions.setSettingsOpen(!model.settingsOpen) } label: {
-            HStack {
-                SectionTitle(text: L("설정", "Settings"))
-                Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(model.settingsOpen ? 90 : 0))
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(L("설정", "Settings"))
-        .accessibilityValue(model.settingsOpen ? L("펼침", "Expanded") : L("접힘", "Collapsed"))
-    }
-
-    private var settings: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(L("패널 꺼내기", "Panel reveal")).font(.system(size: 11)).foregroundStyle(.tertiary)
-                speedRow(L("펼치는 속도", "Reveal"), [L("바로", "Instant"), L("빠르게", "Quick"), L("천천히", "Slow")], model.reveal, model.actions.setReveal)
-                speedRow(L("접히는 속도", "Fold away"), [L("바로", "Instant"), L("빠르게", "Quick"), L("여유 있게", "Relaxed")], model.collapse, model.actions.setCollapse)
-                ToggleRow(title: L("오른쪽 끝에서도 펼치기", "Also reveal at right edge"), isOn: model.rightEdge, action: model.actions.toggleRightEdge)
-                ToggleRow(title: L("새 파일을 최소화 모드로 맞추기", "Minimize UI in new files"), isOn: model.minimizeByDefault, action: model.actions.toggleMinimize)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text(L("페이지 바로가기", "Pages")).font(.system(size: 11)).foregroundStyle(.tertiary)
-                ToggleRow(title: L("왼쪽 아래 페이지 버튼", "Page button at bottom left"), isOn: model.showChip, action: model.actions.toggleChip)
-                ToggleRow(title: L("단축키", "Shortcuts"), note: "⌃⌥P · ⌃⌥← · ⌃⌥→", isOn: model.shortcutsOn, action: model.actions.toggleShortcuts)
-                ToggleRow(title: L("이동할 때 패널 가리기", "Hide panel while switching"),
-                          note: model.coverNeedsPermission ? L("화면 기록 권한이 필요해요", "Needs Screen Recording permission") : nil,
-                          isOn: model.coverPanel && !model.coverNeedsPermission, action: model.actions.toggleCover)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text(L("그 밖에", "More")).font(.system(size: 11)).foregroundStyle(.tertiary)
-                ToggleRow(title: L("작업 기록 남기기", "Record activity"), note: L("이 Mac에만 저장해요", "Stored only on this Mac"),
-                          isOn: model.workLog, action: model.actions.toggleWorkLog)
-                ToggleRow(title: L("로그인할 때 자동 실행", "Launch at login"), isOn: model.launchAtLogin, action: model.actions.toggleLogin)
-                Button(action: model.actions.connectClaude) {
-                    HStack {
-                        Text(L("Claude Code와 연결하기…", "Connect Claude Code…")).font(.system(size: 12.5))
-                        Spacer()
-                        Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                    }
-                    .frame(minHeight: 24).contentShape(Rectangle())
+    private var grid: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.fixed(36), spacing: 8), count: 7), alignment: .leading, spacing: 8) {
+            ForEach(model.marks) { m in
+                let selected = model.weatherMode == 0 && m.id == model.selectedMark
+                let hovered = hoveredMark == m.id
+                Button { model.actions.selectMark(m.id) } label: {
+                    MarkImage(id: m.id, playing: hovered || model.motionBlocked == nil, size: 20,
+                              color: selected ? NSColor(LH.accent) : .labelColor)
+                        .frame(width: 36, height: 36)
+                        .background(RoundedRectangle(cornerRadius: 8)
+                            .fill(selected ? LH.accent.opacity(0.14) : LH.fill(hovered ? 0.1 : 0.05)))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? LH.accent : .clear, lineWidth: 1.5))
+                        .opacity(model.weatherMode > 0 && !hovered ? 0.5 : 1)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .onHover { inside in if inside { hoveredMark = m.id } else if hoveredMark == m.id { hoveredMark = nil } }
+                .help(model.weatherMode > 0 ? L("\(m.name) · 고르면 날씨 대신 이 아이콘이 보여요", "\(m.name) · Choose to show it instead of the weather") : m.name)
+                .accessibilityLabel(m.name)
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             }
         }
     }
 
-    private func speedRow(_ title: String, _ options: [String], _ selection: Int?, _ action: @escaping (Int) -> Void) -> some View {
-        HStack(spacing: 12) {
-            Text(title).font(.system(size: 12.5))
-            Spacer(minLength: 8)
-            LHSegmented(options: options, selection: selection, label: title, action: action).frame(width: 168)
+    // 날씨: 격자 맨 아래의 긴 칸 하나. 다른 아이콘처럼 누르면 고른 것이 되고(파란 테두리), 다른 아이콘을 누르면 풀린다.
+    // 칸 왼쪽은 메뉴 막대에 보일 모습(☀ 또는 ☀ 4°), 오른쪽은 온도를 붙일지 정하는 스위치.
+    // 아래 한 줄은 늘 자리를 지켜, 고르고 풀어도 패널 높이가 그대로다.
+    private var weather: some View {
+        let selected = model.weatherMode > 0
+        let hovered = hoveredMark == MarkLibrary.weatherID
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 0) {
+                Button { model.actions.setWeatherMode(model.weatherShowTemp ? 2 : 1) } label: {
+                    HStack(spacing: 4) {
+                        MarkImage(id: MarkLibrary.weatherID, playing: hovered || model.motionBlocked == nil, size: 20,
+                                  color: selected ? NSColor(LH.accent) : .labelColor)
+                            .frame(width: 36, height: 36)       // 위 격자의 아이콘과 같은 자리
+                        // 온도를 받았고 온도도 붙이면 "4°", 아니면 "날씨" (칸이 비어 보이지 않게)
+                        if model.weatherShowTemp, let t = model.weatherTemp {
+                            Text("\(t)°").font(.system(size: 13, weight: .medium).monospacedDigit())
+                                .foregroundStyle(selected ? LH.accent : Color.primary)
+                        } else {
+                            Text(L("날씨", "Weather")).font(.system(size: 12.5))
+                                .foregroundStyle(selected ? LH.accent : Color.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(L("날씨 · 고르면 아이콘 대신 지금 위치의 날씨가 보여요", "Weather · Shows the weather here instead of an icon"))
+                .accessibilityLabel(L("날씨", "Weather"))
+                .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+                HStack(spacing: 4) {
+                    Text(L("온도", "Temp")).font(.system(size: 11.5)).foregroundStyle(.secondary)
+                    LHToggle(isOn: model.weatherShowTemp, label: L("온도 함께 보이기", "Show temperature"),
+                             action: { model.actions.setWeatherTemp(!model.weatherShowTemp) })
+                }
+                .padding(.trailing, 8)
+            }
+            .frame(height: 36)
+            .background(RoundedRectangle(cornerRadius: 8)
+                .fill(selected ? LH.accent.opacity(0.14) : LH.fill(hovered ? 0.1 : 0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? LH.accent : .clear, lineWidth: 1.5))
+            .onHover { inside in if inside { hoveredMark = MarkLibrary.weatherID } else if hoveredMark == MarkLibrary.weatherID { hoveredMark = nil } }
+
+            HStack(spacing: 8) {
+                if !selected {
+                    Text(L("날씨를 고르면 위치 권한을 한 번 물어요", "Choosing weather asks for location once"))
+                } else {
+                    Text(model.weatherStatus.isEmpty ? L("날씨를 받는 중…", "Getting the weather…") : model.weatherStatus)
+                    if model.weatherDenied {
+                        Button(action: model.actions.openLocationSettings) {
+                            Text(L("위치 설정 열기", "Open Settings")).foregroundStyle(LH.accent)
+                                .padding(.vertical, 8).contentShape(Rectangle())     // 글자보다 넓게 눌리도록
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, -8)
+                    }
+                }
+            }
+            .font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+            .frame(height: 16)
         }
     }
 
+    // 아래: 설정 창 열기(⌘,)와 종료(⌘Q)
     private var footer: some View {
-        HStack(spacing: 14) {
-            footerLink(L("사용법", "How it works"), model.actions.showGuide)
-            footerLink(L("문제 기록", "Log"), model.actions.showLog)
-            Spacer()
-            Text(model.version).font(.system(size: 11)).foregroundStyle(.tertiary).monospacedDigit()
-            Button(action: model.actions.quit) {
-                Text(L("종료", "Quit")).font(.system(size: 11.5, weight: .medium)).padding(.horizontal, 10).frame(height: 24)
+        HStack(spacing: 8) {
+            Button(action: model.actions.showSettings) {
+                HStack(spacing: 8) {
+                    Image(systemName: "gearshape").font(.system(size: 13)).frame(width: 16)
+                    Text(L("설정…", "Settings…")).font(.system(size: 12.5, weight: .medium))
+                    Spacer(minLength: 4)
+                    Keycap(text: "⌘,")
+                }
+                .padding(.horizontal, 12).frame(maxWidth: .infinity).frame(height: 32)
+                .contentShape(Rectangle())
             }
-            .buttonStyle(QuietButtonStyle())
+            .buttonStyle(QuietButtonStyle(flat: true))
+            .keyboardShortcut(",", modifiers: .command)
+            .help(L("펼치는 속도, 페이지 버튼, 로그인 시 열기 등", "Reveal speed, page button, open at login and more"))
+            if let v = model.updateVersion, !model.autoUpdate {
+                Button(action: model.actions.installUpdate) {
+                    Text(L("\(v) 업데이트", "Update to \(v)")).font(.system(size: 12, weight: .semibold)).foregroundStyle(LH.accent)
+                        .padding(.horizontal, 12).frame(height: 32).contentShape(Rectangle())
+                }
+                .buttonStyle(QuietButtonStyle(flat: true))
+                .help(L("받아서 바꿔 끼우고 다시 시작해요", "Downloads, replaces and restarts Layerhover"))
+            }
+            Button(action: model.actions.quit) {
+                Text(L("종료", "Quit")).font(.system(size: 12.5)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 12).frame(height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(QuietButtonStyle(flat: true))
             .keyboardShortcut("q")
             .accessibilityLabel(L("Layerhover 종료", "Quit Layerhover"))
         }
-    }
-
-    private func footerLink(_ title: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) { Text(title).font(.system(size: 11.5)).foregroundStyle(.secondary) }
-            .buttonStyle(.plain)
+        .padding(.horizontal, -8)      // 바탕 없는 버튼의 글자가 위 내용과 줄을 맞추도록
     }
 }
 
@@ -557,7 +607,7 @@ struct WelcomeView: View {
             }
             .padding(.top, 20)
 
-            permissionCard.padding(.top, 18)
+            permissionCard.padding(.top, 16)
 
             VStack(alignment: .leading, spacing: 12) {
                 tip("cursorarrow.motionlines", L("레이어 꺼내기", "Reveal layers"),
@@ -569,7 +619,7 @@ struct WelcomeView: View {
             }
             .padding(.top, 20)
 
-            Rectangle().fill(LH.fill(0.08)).frame(height: 1).padding(.vertical, 18)
+            Rectangle().fill(LH.fill(0.08)).frame(height: 1).padding(.vertical, 16)
 
             HStack(spacing: 12) {
                 LHToggle(isOn: model.launchAtLogin, label: L("로그인할 때 자동 실행", "Launch at login")) { model.setLaunchAtLogin(!model.launchAtLogin) }
@@ -579,7 +629,7 @@ struct WelcomeView: View {
                     Text(model.trusted ? L("시작하기", "Get Started") : L("닫기", "Close"))
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(model.trusted ? Color.white : Color.primary)
-                        .padding(.horizontal, 18).frame(height: 30)
+                        .padding(.horizontal, 16).frame(height: 32)
                 }
                 .buttonStyle(QuietButtonStyle(prominent: model.trusted))
                 .keyboardShortcut(.defaultAction)
@@ -596,7 +646,7 @@ struct WelcomeView: View {
                 Image(systemName: model.trusted ? "checkmark" : "hand.raised.fill")
                     .font(.system(size: 14, weight: .semibold)).foregroundStyle(model.trusted ? Color.green : Color.orange)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(model.trusted ? L("준비됐어요", "You're all set") : L("먼저 손쉬운 사용 권한을 켜 주세요", "First, turn on Accessibility permission"))
                     .font(.system(size: 13, weight: .semibold))
                 Text(model.trusted
@@ -608,15 +658,15 @@ struct WelcomeView: View {
                     Button(action: openSettings) {
                         Text(L("손쉬운 사용 설정 열기", "Open Accessibility Settings"))
                             .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-                            .padding(.horizontal, 14).frame(height: 28)
+                            .padding(.horizontal, 16).frame(height: 28)
                     }
                     .buttonStyle(QuietButtonStyle(prominent: true))
-                    .padding(.top, 6)
+                    .padding(.top, 8)
                 }
             }
             Spacer(minLength: 0)
         }
-        .padding(14)
+        .padding(16)
         .background(RoundedRectangle(cornerRadius: 12).fill((model.trusted ? Color.green : Color.orange).opacity(0.07)))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder((model.trusted ? Color.green : Color.orange).opacity(0.2)))
         .accessibilityElement(children: .contain)
@@ -627,8 +677,8 @@ struct WelcomeView: View {
             Image(systemName: symbol).font(.system(size: 14, weight: .medium)).foregroundStyle(LH.accent)
                 .frame(width: 32, height: 32)
                 .background(RoundedRectangle(cornerRadius: 8).fill(LH.accent.opacity(0.1)))
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
                     Text(title).font(.system(size: 13, weight: .semibold))
                     if let keys { ForEach(keys, id: \.self) { Keycap(text: $0) } }
                 }
