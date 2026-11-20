@@ -11,3 +11,6 @@ tools/bin/
 marks-preview.html
 homebrew-tap/
 .claude/
+
+# 소개 페이지 시안들 (공개하지 않음)
+docs/v-*/
