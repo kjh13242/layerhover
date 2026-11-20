@@ -1,0 +1,1610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layerhover — Keep panels folded, bring them out at the edge</title>
+<meta name="description" content="A macOS menu bar helper for the Figma desktop app. Keep the layers panel folded and push the pointer to the left edge to bring it out. Free, unofficial.">
+<meta property="og:title" content="Layerhover — Keep panels folded, bring them out at the edge">
+<meta property="og:description" content="A menu bar helper that brings out Figma panels when the pointer touches the screen edge. Free, macOS 13+.">
+<meta property="og:image" content="https://kjh13242.github.io/layerhover/assets/og.png">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/app-icon.png">
+<link rel="apple-touch-icon" href="../assets/app-icon.png">
+<link rel="alternate" hreflang="ko" href="https://kjh13242.github.io/layerhover/">
+<link rel="alternate" hreflang="en" href="https://kjh13242.github.io/layerhover/en/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..800&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{
+  --bg:#F1F2F4; --paper:#FFFFFF; --ink:#0E0F12; --ink-2:#4B4E57; --ink-3:#868A94; --line:#DADCE1; --line-2:#E7E8EC;
+  
+  /* type scale — 6 steps, line heights on the 4pt grid */
+  --fs-d:64px; --lh-d:68px;   /* display: hero headline */
+  --fs-t:48px; --lh-t:56px;   /* title: section headline */
+  --fs-h:20px; --lh-h:28px;   /* heading: card titles, hero description */
+  --fs-b:16px; --lh-b:24px;   /* body, buttons */
+  --fs-s:14px; --lh-s:20px;   /* small: secondary text, nav, tabs */
+  --fs-m:12px; --lh-m:16px;   /* micro: mono labels, key caps */
+  /* weights: 400 body · 500 buttons/labels · 600 subheads · 700 headlines */
+  --ok:#16A37F; --switch-off:#C9CCD3; --ink-inv-2:#9EA3AE; --code-tx:#EDEEF2; --code-dim:#7E8494;
+
+  /* glass — the page's surface material */
+  --glass:rgba(255,255,255,.52); --glass-hi:rgba(255,255,255,.72); --glass-edge:rgba(255,255,255,.8);
+  --glass-line:rgba(14,15,18,.07); --glass-blur:blur(24px) saturate(1.7);
+  --glass-shadow:0 0 0 1px var(--glass-line),0 1px 0 rgba(255,255,255,.9) inset,0 24px 48px -28px rgba(14,15,18,.32);
+  /* spacing scale (4pt) — 20, 28, 36, 56, 72 are not used */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px; --sp-9:96px; --sp-10:128px;
+  /* relationships */
+  --gap-section:var(--sp-10);   /* section ↔ section */
+  --gap-head:var(--sp-8);       /* section title → its content */
+  --gap-group:var(--sp-5);      /* big element → the element that belongs to it */
+  --gap-line:var(--sp-4);       /* sibling lines inside a group */
+  --pad-card:var(--sp-5);       /* card inside */
+  --pad-bar:var(--sp-4);        /* small bar inside */
+  --accent:#1D4DFF; --accent-2:#0F36D6; --accent-soft:#E5EBFF;
+  --sans:"Geist","Pretendard Variable",Pretendard,-apple-system,"Apple SD Gothic Neo",sans-serif;
+  --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --ui:"Inter","Pretendard Variable",-apple-system,sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --gut:clamp(16px,4vw,56px);
+  /* figma dark */
+  --f-bg:#1E1E1E; --f-panel:#2C2C2C; --f-line:#3D3D3D; --f-tx:#F2F2F2; --f-tx2:#A8A8A8; --f-tx3:#7A7A7A; --f-blue:#0D99FF; --f-sel:#4A5878; --f-comp:#B57CFF;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:var(--fs-b);line-height:var(--lh-b);-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-x:hidden}
+a{color:inherit}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+img{display:block;max-width:100%}
+::selection{background:var(--accent);color:#fff}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
+.wrap{width:min(100% - 2*var(--gut),1200px);margin-inline:auto}
+.mono{font-family:var(--mono);font-size:var(--fs-m);line-height:var(--lh-m);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+.nc{text-transform:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* sprites ------------------------------------------------------- */
+.mk{--s:18px;--n:48;width:var(--s);height:var(--s);flex:none;background-repeat:no-repeat;background-size:auto var(--s);background-position:0 0;animation:mk calc(var(--n) * 125ms) steps(var(--n)) infinite}
+@keyframes mk{to{background-position:calc(var(--n) * var(--s) * -1) 0}}
+.mk.still{animation:none}
+.ink{filter:url(#f-ink)} .inka{filter:url(#f-accent)} .inkw{filter:url(#f-white)}
+
+/* nav ----------------------------------------------------------- */
+.nav{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);border-bottom:1px solid transparent;transition:border-color .3s}
+.nav.scrolled{border-bottom-color:var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:24px;height:60px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:-.01em;text-decoration:none;font-size:var(--fs-b);line-height:var(--lh-b)}
+.brand img{width:24px;height:24px;border-radius:8px}
+.nav nav{display:flex;gap:24px;margin-left:auto;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-2)}
+.nav nav a{text-decoration:none}
+.nav nav a:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:1000px;font-size:var(--fs-b);line-height:var(--lh-b);font-weight:500;text-decoration:none;white-space:nowrap;transition:background .2s,transform .2s var(--ease),box-shadow .2s}
+.btn-a{background:var(--accent);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 6px 18px -8px rgba(29,77,255,.7)}
+.btn-a:hover{background:var(--accent-2)}
+.btn-o{border:1px solid var(--line);background:var(--paper)}
+.btn-o:hover{border-color:var(--ink-3)}
+.btn:active{transform:scale(.97)}
+.nav .btn{height:32px;padding:0 16px;font-size:var(--fs-s);line-height:var(--lh-s)}
+
+/* hero (berd) --------------------------------------------------- */
+.hero{position:relative;padding:56px 0 40px;overflow:hidden;
+  background-image:radial-gradient(circle at 1px 1px,var(--switch-off) 1px,transparent 0);background-size:22px 22px;background-position:center}
+.hero::after{content:"";position:absolute;inset:auto 0 0 0;height:160px;background:linear-gradient(transparent,var(--bg));pointer-events:none}
+.stagewin{position:relative;width:min(100% - 2*var(--gut),920px);margin:110px auto 90px;z-index:1}
+.peek{position:absolute;z-index:0;pointer-events:none}
+.peek .mk{animation-duration:calc(var(--n) * 125ms)}
+.p-crane{left:4%;top:-178px}
+.p-pagoda{right:9%;top:-168px}
+.p-buddha{left:-170px;top:30%}
+.p-lotus{right:-178px;top:46%}
+.p-wave{left:14%;bottom:-150px}
+.p-cat{right:16%;bottom:-140px}
+.p-float{animation:float 7s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-8px)}}
+.mac{position:relative;z-index:1;background:var(--paper);border-radius:14px;box-shadow:0 0 0 1px rgba(14,15,18,.08),0 30px 80px -30px rgba(14,15,18,.35),0 12px 24px -16px rgba(14,15,18,.2);overflow:hidden}
+.mac-bar{height:42px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--line-2);background:#FAFAFB;position:relative}
+.lights{display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#FF5F57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)}
+.lights i:nth-child(2){background:#FEBC2E}.lights i:nth-child(3){background:#28C840}
+.mac-title{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:7px;font-size:13px;font-weight:550;color:var(--ink-2)}
+.mac-title img{width:16px;height:16px;border-radius:4px}
+.mac-body{padding:clamp(40px,7vw,84px) clamp(20px,6vw,72px) clamp(36px,6vw,64px);text-align:center}
+.hero h1{font-size:var(--fs-d);line-height:var(--lh-d);letter-spacing:-.035em;font-weight:700;margin:16px 0 24px}
+.hero h1 span{color:var(--ink-3)}
+.lede{max-width:34em;margin:0 auto;color:var(--ink-2);font-size:var(--fs-b);line-height:var(--lh-b)}
+.lede-en{margin-top:8px;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-3)}
+.ctas{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:32px}
+.ctas .btn{height:48px;padding:0 24px;font-size:var(--fs-b);line-height:var(--lh-b)}
+.meta{margin-top:20px;display:flex;gap:8px 16px;justify-content:center;flex-wrap:wrap}
+.meta span{display:inline-flex;align-items:center;gap:8px}
+.meta span::before{display:none;content:"";width:4px;height:4px;border-radius:50%;background:var(--accent)}
+
+.hero{padding:96px 0 48px;background:none;overflow:visible}
+.hero::after{display:none}
+.hero-in{display:flex;flex-direction:column;align-items:center;text-align:center}
+.hero h1{font-size:var(--fs-d);line-height:var(--lh-d);margin:0}
+.hero .sub{margin-top:24px;max-width:32em;color:var(--ink-2);font-size:var(--fs-b);line-height:var(--lh-b)}
+.btn-k{margin-top:32px;height:52px;padding:0 28px;font-size:var(--fs-b);line-height:var(--lh-b);background:var(--ink);color:#fff}
+.btn-k:hover{background:#2A2C33}
+.hero .label{margin-bottom:24px;justify-content:center}
+.hero .lede{margin:0 auto;max-width:32em;font-size:var(--fs-b);line-height:var(--lh-b)}
+.hero .ctas{justify-content:center;margin-top:32px}
+.hero .meta{justify-content:center;margin-top:16px}
+.hero .hbar+.meta{margin-top:16px}
+/* demo section (rayon) ------------------------------------------ */
+.sec{padding:var(--gap-section) 0;border-top:1px solid var(--line)}
+.sec-head{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;margin-bottom:var(--gap-head)}
+.h2{font-size:var(--fs-t);line-height:var(--lh-t);letter-spacing:-.032em;font-weight:700}
+.h2 span{color:var(--ink-3)}
+.sec-head p{max-width:24em;color:var(--ink-2);font-size:var(--fs-b);line-height:var(--lh-b)}
+.label{display:flex;gap:var(--sp-2);align-items:center;margin-bottom:var(--sp-4)}
+.label b{font-weight:500;color:var(--accent)}
+#demo{border-top:0;padding-top:0}
+.under{margin-top:24px}
+.under .tabs{margin-bottom:16px}
+
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:5px;gap:4px;margin-bottom:14px}
+.tab{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px 13px;border-radius:10px;transition:background .25s;overflow:hidden}
+.tab:hover{background:var(--bg)}
+.tab .t{font-size:var(--fs-b);line-height:var(--lh-b);font-weight:600;letter-spacing:-.01em}
+.tab .k{font-family:var(--mono);font-size:var(--fs-m);line-height:var(--lh-m);color:var(--ink-3);letter-spacing:.02em}
+.tab .n{position:absolute;right:12px;top:12px;font-family:var(--mono);font-size:var(--fs-m);line-height:var(--lh-m);color:var(--ink-3)}
+.tab[aria-selected=true]{background:var(--ink);color:#fff}
+.tab[aria-selected=true] .k,.tab[aria-selected=true] .n{color:var(--ink-inv-2)}
+.tab[aria-selected=true]::after{content:"";position:absolute;left:14px;right:14px;bottom:6px;height:2px;border-radius:2px;background:var(--accent);transform-origin:left;animation:tabline 1s var(--ease)}
+@keyframes tabline{from{transform:scaleX(0)}}
+.caption{display:flex;justify-content:space-between;align-items:center;gap:16px;min-height:38px;margin-bottom:14px;font-size:var(--fs-b);line-height:var(--lh-b);color:var(--ink-2)}
+.caption p b{color:var(--ink);font-weight:600}
+.switch{display:inline-flex;align-items:center;gap:8px;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-2);cursor:pointer;user-select:none;white-space:nowrap}
+.switch input{appearance:none;width:32px;height:20px;border-radius:20px;background:var(--switch-off);position:relative;cursor:pointer;transition:background .2s}
+.switch input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .25s var(--ease)}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{transform:translateX(14px)}
+
+/* hero command bar — same surface, border and buttons as the rest of the page */
+.hbar{position:relative;z-index:2;display:flex;align-items:center;gap:8px;margin-top:32px;width:min(720px,100%);padding:8px 8px 8px 24px;border-radius:1000px;background:rgba(255,255,255,.52);-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);border:1px solid rgba(255,255,255,.8);box-shadow:0 0 0 1px rgba(14,15,18,.06),0 1px 0 rgba(255,255,255,.9) inset,0 16px 40px -20px rgba(14,15,18,.35)}
+.hbar code{flex:1;min-width:0;text-align:left;font:500 var(--fs-s)/var(--lh-s) var(--mono);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hbar code span{color:var(--ink-3)}
+.hb{flex:none;height:40px;padding:0 16px;border-radius:1000px;display:inline-flex;align-items:center;gap:8px;font-size:var(--fs-s);line-height:var(--lh-s);font-weight:500;text-decoration:none;white-space:nowrap;transition:background .2s,border-color .2s}
+.hb.copy2{color:var(--ink);background:rgba(255,255,255,.6);border:1px solid rgba(14,15,18,.1)}
+.hb.copy2:hover{border-color:var(--ink-3)}
+.hb.copy2.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.hb.dl{background:var(--accent);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 8px 16px -8px rgba(29,77,255,.7)}
+.hb.dl:hover{background:var(--accent-2)}
+@media (max-width:640px){.hbar{flex-wrap:wrap;border-radius:24px;padding:16px}.hbar code{flex-basis:100%;font-size:var(--fs-m);line-height:var(--lh-m);margin-bottom:8px}.hb{flex:1;justify-content:center}}
+/* demo carousel bar — sits in a paper card like the old tab strip */
+.ctl{position:relative;z-index:1;display:flex;align-items:center;gap:var(--sp-5);margin-top:var(--gap-group);padding:8px 8px 8px 24px;border:1px solid var(--line);border-radius:16px;background:var(--paper)}
+.ctl .cap{flex:1;display:flex;align-items:baseline;gap:16px;min-width:0}
+.ctl .cap.r{justify-content:flex-end;padding-right:16px}
+.ctl .cap b{font-size:var(--fs-b);line-height:var(--lh-b);font-weight:600;white-space:nowrap}
+.ctl .cap b i{font:500 var(--fs-m)/var(--lh-m) var(--mono);font-style:normal;color:var(--accent);margin-right:8px}
+.ctl .cap span{font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctl .btns{display:flex;align-items:center;gap:8px}
+.ctl .btns button{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);background:var(--bg);transition:background .2s,color .2s}
+.ctl .btns button:hover{color:var(--ink);background:var(--line-2)}
+.ctl .pp{position:relative}
+.ctl .pp svg.prog{position:absolute;inset:0;width:40px;height:40px;transform:rotate(-90deg)}
+.ctl .pp svg.prog circle{fill:none;stroke:var(--accent);stroke-width:2;stroke-dasharray:119.4;stroke-dashoffset:119.4}
+.dashes{display:flex;gap:4px}
+.dashes i{width:24px;height:2px;border-radius:2px;background:var(--line);cursor:pointer;transition:background .3s,width .3s}
+.dashes i.on{width:40px;background:var(--accent)}
+@media (max-width:640px){.ctl{flex-wrap:wrap;gap:16px;padding:16px}.ctl .cap:first-child{flex-basis:100%;flex-direction:column;gap:4px}.ctl .cap span{white-space:normal}.ctl .cap.r{padding-right:0}}
+/* desk = fake mac screen */
+.desk{position:relative;border-radius:18px;overflow:hidden;background:#D9DCE2;
+  background-image:radial-gradient(120% 90% at 85% 0%,#EEF0F4 0%,transparent 60%),radial-gradient(90% 80% at 0% 100%,#C8CCD5 0%,transparent 70%);
+  box-shadow:0 0 0 1px rgba(14,15,18,.08),0 40px 80px -40px rgba(14,15,18,.4);touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.mb{height:28px;display:flex;align-items:center;gap:18px;padding:0 14px;font-family:var(--ui);font-size:13px;color:#16171A;background:rgba(246,247,249,.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);position:relative;z-index:6}
+.mb .apple{width:13px;height:15px}
+.mb b{font-weight:650}
+.mb .menus{display:flex;gap:18px}
+.mb .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.mb .lh{display:flex;align-items:center;gap:4px;height:22px;padding:0 6px;border-radius:5px;transition:background .15s}
+.mb .lh.on,.mb .lh:hover{background:rgba(0,0,0,.1)}
+.mb .lh .tmp{font-size:12.5px;font-weight:500;display:none}
+.mb .lh.wx .tmp{display:inline}
+.mb svg{display:block}
+.fwrap{padding:22px 26px 26px;position:relative}
+
+/* figma window */
+.fig{position:relative;border-radius:11px;overflow:hidden;background:var(--f-bg);box-shadow:0 0 0 1px rgba(0,0,0,.45),0 24px 60px -20px rgba(0,0,0,.55);font-family:var(--ui);color:var(--f-tx);font-size:11.5px;letter-spacing:.005em}
+.f-title{height:38px;display:flex;align-items:center;gap:14px;padding:0 12px;background:#2C2C2C;border-bottom:1px solid #1A1A1A}
+.f-title .home{width:28px;height:26px;display:grid;place-items:center;border-radius:5px;color:var(--f-tx2)}
+.f-tabs{display:flex;align-items:stretch;height:100%;gap:1px}
+.f-tab{display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--f-tx2);font-size:12px;min-width:0}
+.f-tab.on{background:var(--f-bg);color:var(--f-tx);border-radius:7px 7px 0 0;margin-top:6px}
+.f-tab .x{opacity:.5}
+.f-body{position:relative;height:clamp(460px,62vh,600px);overflow:hidden;
+  background-color:var(--f-bg);background-image:radial-gradient(circle at 1px 1px,#2A2A2A 1px,transparent 0);background-size:16px 16px}
+/* floating UI3 pills */
+.pill{position:absolute;display:flex;align-items:center;gap:6px;background:var(--f-panel);border:1px solid var(--f-line);border-radius:12px;box-shadow:0 8px 20px rgba(0,0,0,.35);padding:6px;z-index:3;transition:opacity .25s,transform .35s var(--ease)}
+.p-file{top:10px;left:10px;padding:5px 6px 5px 8px}
+.p-file .nm{font-weight:600;font-size:12px;padding:0 2px}
+.p-file .sub{color:var(--f-tx3)}
+.ib{width:26px;height:26px;display:grid;place-items:center;border-radius:6px;color:var(--f-tx2)}
+.ib.on{background:var(--f-blue);color:#fff}
+.p-share{top:10px;right:10px}
+.av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:600;color:#fff;border:2px solid var(--f-panel)}
+.av+.av{margin-left:-10px}
+.share{background:var(--f-blue);color:#fff;font-weight:600;font-size:11.5px;padding:5px 11px;border-radius:6px}
+.zoom{color:var(--f-tx2);padding:0 4px}
+.p-tools{left:50%;bottom:12px;transform:translateX(-50%);padding:3px;gap:2px}
+.p-tools .sep{width:1px;height:20px;background:var(--f-line);margin:0 4px}
+.p-tools .ib{width:32px;height:32px;border-radius:8px}
+.fig.l-open .p-file{opacity:0;transform:translateX(-10px)}
+.fig.r-open .p-share{opacity:0}
+
+/* canvas frames */
+.canvas{position:absolute;inset:0;display:grid;place-items:center;z-index:1}
+.frame-wrap{position:relative;width:min(58%,620px);transition:opacity .25s,transform .45s var(--ease)}
+.frame-wrap.swap{opacity:0;transform:translateY(8px) scale(.985)}
+.frame-lbl{position:absolute;top:-19px;left:0;font-size:11px;color:var(--f-tx2);white-space:nowrap}
+.frame{position:relative;aspect-ratio:16/10;background:#fff;color:#111;overflow:hidden;font-family:var(--ui)}
+[data-el]{transition:box-shadow .12s}
+.hl{box-shadow:0 0 0 1.5px var(--f-blue)!important}
+.sel{box-shadow:0 0 0 1.5px var(--f-blue)!important;position:relative}
+.selbox{position:absolute;pointer-events:none;border:1.5px solid var(--f-blue);z-index:2;transition:all .3s var(--ease)}
+.selbox i{position:absolute;width:7px;height:7px;background:#fff;border:1.5px solid var(--f-blue)}
+.selbox i:nth-child(1){left:-4px;top:-4px}.selbox i:nth-child(2){right:-4px;top:-4px}.selbox i:nth-child(3){left:-4px;bottom:-4px}.selbox i:nth-child(4){right:-4px;bottom:-4px}
+.selbox span{position:absolute;left:50%;top:calc(100% + 6px);transform:translateX(-50%);background:var(--f-blue);color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap}
+
+/* design templates (inside frame) */
+.d{position:absolute;inset:0;display:flex;font-size:9px}
+.d-side{width:18%;background:#F4F5F7;border-right:1px solid #ECEDF0;padding:9% 3% 0;display:flex;flex-direction:column;gap:8%}
+.d-side .lg{width:38%;aspect-ratio:1;border-radius:30%;background:#111}
+.d-side b{display:block;height:5px;border-radius:3px;background:#D6D8DD}
+.d-side b.on{background:#111}
+.d-main{flex:1;padding:5% 5%;display:flex;flex-direction:column;gap:5%}
+.d-head{display:flex;justify-content:space-between;align-items:center}
+.d-head .t{font-size:clamp(9px,1.5vw,17px);font-weight:600;letter-spacing:-.02em}
+.d-head .pl{width:18%;height:14px;border-radius:7px;background:#111}
+.d-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:4%}
+.card{border:1px solid #ECEDF0;border-radius:6px;padding:9% 10%;display:flex;flex-direction:column;gap:9px}
+.card s{display:block;width:45%;height:4px;background:#D6D8DD;border-radius:2px}
+.card em{display:block;width:70%;height:10px;background:#111;border-radius:2px}
+.card u{display:block;width:30%;height:4px;background:var(--ok);border-radius:2px}
+.d-chart{flex:1;border:1px solid #ECEDF0;border-radius:6px;display:flex;align-items:flex-end;gap:3.4%;padding:4% 5% 0}
+.d-chart i{flex:1;background:#E7E9EE;border-radius:2px 2px 0 0}
+.d-chart i.on{background:#111}
+.d-c{flex-direction:column;align-items:center;justify-content:center;gap:5%;background:#F6F6F4}
+.lg-card{width:44%;background:#fff;border:1px solid #ECEDF0;border-radius:10px;padding:5%;display:flex;flex-direction:column;gap:9px;box-shadow:0 10px 30px -18px rgba(0,0,0,.3)}
+.lg-card .lg{width:18%;aspect-ratio:1;border-radius:30%;background:#111;margin-bottom:4px}
+.lg-card .t{font-size:clamp(8px,1.2vw,14px);font-weight:600}
+.inp{height:clamp(12px,2.2vw,24px);border:1px solid #DDDFE4;border-radius:5px}
+.bt{height:clamp(12px,2.2vw,24px);border-radius:5px;background:#111}
+.d-cover{background:#0F1A14;color:#fff;flex-direction:column;justify-content:flex-end;padding:6%}
+.d-cover .big{font-size:clamp(16px,3.6vw,44px);font-weight:700;letter-spacing:-.04em;line-height:1}
+.d-cover .sm{margin-top:3%;color:#9CC9AE;font-size:clamp(8px,1vw,12px)}
+.d-cover .orb{position:absolute;right:-8%;top:-20%;width:56%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 40% 40%,#3DDC97,#0F6B47 60%,transparent 70%)}
+.d-welcome{flex-direction:column;padding:8%;gap:6%}
+.d-welcome .big{font-size:clamp(14px,3vw,36px);font-weight:700;letter-spacing:-.035em}
+.d-welcome .ln{height:6px;background:#E3E5EA;border-radius:3px}
+.d-welcome .rw{display:grid;grid-template-columns:repeat(3,1fr);gap:4%;flex:1}
+.d-welcome .rw div{border-radius:8px;background:#F3F4F6;border:1px solid #ECEDF0}
+.d-table{flex-direction:column;padding:5%;gap:3%}
+.d-table .t{font-size:clamp(9px,1.5vw,17px);font-weight:600}
+.tr{display:grid;grid-template-columns:2fr 1fr 1fr .6fr;gap:4%;align-items:center;padding:2.2% 0;border-bottom:1px solid #EEF0F2}
+.tr b{height:5px;background:#D6D8DD;border-radius:3px;display:block}
+.tr b.k{background:#111;width:70%}
+.tr .pz{height:10px;border-radius:5px;background:#DDF3EA;width:80%}
+.d-set{flex-direction:column;padding:5% 7%;gap:2%}
+.d-set .t{font-size:clamp(9px,1.5vw,17px);font-weight:600;margin-bottom:2%}
+.srow{display:flex;align-items:center;justify-content:space-between;padding:2.6% 0;border-bottom:1px solid #EEF0F2}
+.srow b{height:5px;width:36%;background:#D6D8DD;border-radius:3px}
+.tg{width:clamp(14px,2.4vw,26px);aspect-ratio:1.8;border-radius:20px;background:#D6D8DD;position:relative}
+.tg::after{content:"";position:absolute;top:12%;left:7%;height:76%;aspect-ratio:1;border-radius:50%;background:#fff}
+.tg.on{background:#111}.tg.on::after{left:auto;right:7%}
+.d-stk{background:#F4F4F1;flex-wrap:wrap;padding:6%;gap:4%;align-content:flex-start}
+.stk{width:20%;aspect-ratio:1;border-radius:3px;padding:3%;box-shadow:0 4px 10px -6px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:6px}
+.stk b{height:4px;background:rgba(0,0,0,.2);border-radius:2px}
+.stk b+b{width:60%}
+
+/* left layers panel */
+.lp{position:absolute;top:0;left:0;bottom:0;width:248px;background:var(--f-panel);border-right:1px solid var(--f-line);z-index:4;transform:translateX(-102%);transition:transform .32s var(--ease);display:flex;flex-direction:column;box-shadow:12px 0 30px -12px rgba(0,0,0,.6)}
+.fig.l-open .lp{transform:none}
+.lp-h{display:flex;align-items:center;gap:8px;padding:10px 10px 8px 12px}
+.lp-h .nm{font-weight:600;font-size:12.5px}
+.lp-h .sub{color:var(--f-tx3);font-size:11px;margin-top:1px}
+.lp-h .ib{margin-left:auto}
+.lp-tabs{display:flex;gap:4px;padding:2px 10px 8px;border-bottom:1px solid var(--f-line)}
+.lp-tabs span{padding:4px 8px;border-radius:5px;color:var(--f-tx2);font-weight:500}
+.lp-tabs span.on{background:#383838;color:var(--f-tx)}
+.lp-sec{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 4px 16px;font-weight:600;color:var(--f-tx)}
+.lp-sec .p{color:var(--f-tx2)}
+.pgs{padding:0 6px 8px;border-bottom:1px solid var(--f-line)}
+.row{display:flex;align-items:center;gap:7px;height:26px;padding:0 8px;border-radius:5px;white-space:nowrap;overflow:hidden;color:var(--f-tx)}
+.row .ic{width:14px;display:grid;place-items:center;color:var(--f-tx3);flex:none}
+.row.cur{font-weight:600}
+.row.cur .ic{color:var(--f-tx)}
+.row.ghov,.row:hover{background:#383838}
+.lys{padding:2px 6px;overflow:hidden;flex:1}
+.lys .row{height:28px;gap:6px}
+.lys .row .car{width:10px;color:var(--f-tx3);flex:none}
+.lys .row.sel-row{background:var(--f-sel)}
+.lys .row.sel-row.ghov{background:#56668A}
+.lys .row .ic.comp{color:var(--f-comp)}
+.lys .row .ic.fr{color:var(--f-tx2)}
+.lys .row.ghov .vis,.lys .row:hover .vis{opacity:1}
+.vis{margin-left:auto;opacity:0;color:var(--f-tx2)}
+
+/* right props */
+.rp{position:absolute;top:0;right:0;bottom:0;width:240px;background:var(--f-panel);border-left:1px solid var(--f-line);z-index:4;transform:translateX(102%);transition:transform .32s var(--ease);box-shadow:-12px 0 30px -12px rgba(0,0,0,.6)}
+.fig.r-open .rp{transform:none}
+.rp-top{display:flex;align-items:center;gap:6px;padding:9px 10px;border-bottom:1px solid var(--f-line)}
+.rp-top .share{margin-left:auto}
+.rp-tabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--f-line)}
+.rp-tabs span{padding:4px 8px;border-radius:5px;color:var(--f-tx2);font-weight:500}.rp-tabs span.on{background:#383838;color:var(--f-tx)}
+.rp-sec{padding:10px 12px 12px;border-bottom:1px solid var(--f-line)}
+.rp-sec h5{font-size:11.5px;font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between}
+.rp-sec h5 span{color:var(--f-tx2);font-weight:400}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.fld{background:#383838;border-radius:5px;height:24px;display:flex;align-items:center;gap:8px;padding:0 8px;color:var(--f-tx)}
+.fld i{font-style:normal;color:var(--f-tx3)}
+.sw{width:14px;height:14px;border-radius:3px;background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+
+/* edge hint */
+.edge{position:absolute;top:0;bottom:0;width:3px;z-index:5;pointer-events:none;background:var(--accent);opacity:0;transition:opacity .25s,box-shadow .25s}
+.edge.l{left:0}.edge.r{right:0}
+.edge.near{opacity:.45}
+/* edge hint: a quiet dark-glass coach mark (Figma-like), with a tiny loop of what to do — the pointer slides to the edge and the edge lights up */
+.etip{position:absolute;left:16px;top:50%;z-index:3;display:flex;align-items:center;gap:8px;padding:8px 12px 8px 8px;border-radius:12px;
+  /* 어두운 캔버스 위에서 Snow에 띄도록 밝은 유리 (Pages의 유리와 같은 재질) + 끝 쪽으로 살짝 다가가는 Motion */
+  background:rgba(250,250,252,.94);-webkit-backdrop-filter:blur(12px) saturate(1.4);backdrop-filter:blur(12px) saturate(1.4);
+  border:1px solid rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(0,0,0,.25),0 12px 32px -8px rgba(0,0,0,.65),0 0 24px -4px rgba(29,77,255,.45);
+  font:600 13px/16px var(--ui);color:#1C1C1E;pointer-events:none;transform:translateY(-50%);transition:opacity .25s;animation:etipNudge 2.4s var(--ease) infinite}
+@keyframes etipNudge{0%,15%,100%{transform:translateY(-50%)}45%,72%{transform:translate(-4px,-50%)}}
+.etip .eg{position:relative;width:24px;height:16px;flex:none}
+.etip .eg i{position:absolute;left:0;top:1px;width:2px;height:14px;border-radius:1px;background:rgba(0,0,0,.2);animation:egbar 2.4s infinite}
+.etip .eg svg{position:absolute;left:12px;top:2px;width:10px;height:12px;animation:egcur 2.4s var(--ease) infinite}
+@keyframes egcur{0%,15%{transform:translateX(0)}45%,72%{transform:translateX(-9px)}100%{transform:translateX(0)}}
+@keyframes egbar{0%,42%,100%{background:rgba(0,0,0,.2);box-shadow:none}50%,72%{background:var(--accent);box-shadow:0 0 8px 1px rgba(29,77,255,.85)}}
+@media (prefers-reduced-motion:reduce){.etip,.etip .eg i,.etip .eg svg{animation:none}}
+.fig.l-open .etip,.fig:not(.m-edge) .etip{opacity:0}
+.fig.m-edge .edge.l{opacity:.35}
+.fig.m-edge .edge.l.near{opacity:.6}
+.fig.m-edge .edge.l.hit{opacity:1}
+.edge.hit{opacity:1;box-shadow:0 0 18px 4px rgba(29,77,255,.65)}
+
+/* page chip (Layerhover) */
+.chip{position:absolute;left:12px;bottom:12px;z-index:3;display:flex;align-items:center;gap:8px;height:40px;padding:0 8px 0 12px;border-radius:10px;background:#3A3A3A;border:1px solid #4A4A4A;box-shadow:0 8px 20px rgba(0,0,0,.4);font-size:12px;font-weight:500;transition:transform .35s var(--ease),opacity .25s}
+/* 실제 앱처럼: 레이어 패널이 나오면 Pages 버튼은 Rain켜 사라지고, 패널이 접히면 다시 나온다 (옆으로 밀리지 않는다) */
+.chip{transition:opacity .2s,transform .25s var(--ease)}
+.fig.l-open .chip{opacity:0;transform:translateY(4px);pointer-events:none}
+.chip .nm{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block}
+.chip .nm.bump{animation:bump .35s var(--ease)}
+@keyframes bump{from{transform:translateY(6px);opacity:0}}
+.chip button{width:22px;height:24px;display:grid;place-items:center;border-radius:5px;color:#E6E6E6}
+.chip button:hover,.chip button.ghov{background:#505050}
+.chip button:disabled{opacity:.35;cursor:default;background:none}
+
+/* palette */
+.pal{position:absolute;left:50%;top:15%;width:min(430px,88%);transform:translate(-50%,-6px) scale(.98);opacity:0;pointer-events:none;z-index:7;background:#2A2A2A;border:1px solid #444;border-radius:13px;box-shadow:0 30px 80px rgba(0,0,0,.6);transition:opacity .18s,transform .25s var(--ease);font-family:var(--ui)}
+.pal.open{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.pal-s{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #3E3E3E}
+.pal-s input{flex:1;min-width:0;background:none;border:0;outline:0;color:#F3F3F3;font:500 15px var(--ui)}
+.pal-s input::placeholder{color:#8A8A8A}
+.pal-s{position:relative}.caret{position:absolute;top:50%;margin-top:-9px;width:1.5px;height:18px;background:var(--f-blue);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.pal-l{padding:6px;max-height:300px;overflow:hidden}
+.pal-g{padding:7px 10px 4px;color:#8A8A8A;font-size:11.5px}
+.pal-r{display:flex;align-items:center;gap:10px;height:31px;padding:0 10px;border-radius:7px;font-size:13px;color:#EDEDED;cursor:pointer}
+.pal-r.ind{padding-left:28px}
+.pal-r.on{background:#3B3B3B}
+.pal-r svg{color:#9A9A9A;flex:none}
+.pal-r mark{background:none;color:#fff;font-weight:650;text-decoration:underline;text-decoration-color:var(--f-blue);text-underline-offset:3px}
+.pal-f{display:flex;justify-content:space-between;padding:9px 16px;border-top:1px solid #3E3E3E;color:#8A8A8A;font-size:11.5px}
+.keys{position:absolute;left:50%;bottom:64px;transform:translate(-50%,10px);display:flex;gap:6px;z-index:8;opacity:0;transition:opacity .2s,transform .3s var(--ease);pointer-events:none}
+.keys.show{opacity:1;transform:translate(-50%,0)}
+.keys kbd{min-width:40px;height:40px;padding:0 10px;display:grid;place-items:center;border-radius:9px;background:rgba(250,250,250,.96);color:#111;font:600 17px var(--ui);box-shadow:0 2px 0 #B8BBC2,0 10px 24px rgba(0,0,0,.45)}
+
+/* menubar dropdown (light, real panel replica) */
+.dd{position:absolute;top:34px;right:120px;width:332px;z-index:9;padding:16px 16px 12px;border-radius:16px;
+  background:rgba(246,246,248,.82);-webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);
+  border:1px solid rgba(255,255,255,.7);box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 24px 60px -20px rgba(0,0,0,.45);
+  font:400 12.5px/1.3 var(--ui);color:#1C1C1E;opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top right;transition:opacity .2s,transform .3s var(--ease);pointer-events:none}
+.dd.open{opacity:1;transform:none;pointer-events:auto}
+/* glass tile: the app's GlassFill */
+.dd .gl{background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.95);box-shadow:0 0 0 .5px rgba(0,0,0,.07),0 1px 3px rgba(0,0,0,.05);border-radius:8px;transition:background .15s}
+.dd-h{display:flex;align-items:center;gap:12px}
+.dd-h .ai{position:relative;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;flex:none}
+.dd-h .ai .ring{position:absolute;inset:-3px;width:50px;height:50px;overflow:visible}
+.ring path{fill:none;stroke-width:2;stroke-linecap:round}
+.ring .trk{stroke:rgba(0,0,0,.07)}
+.ring .day{stroke:rgba(0,0,0,.4);stroke-dasharray:44 100}
+.dd-h .nm{flex:1;min-width:0}
+.dd-h b{display:block;font-size:15px;font-weight:600}
+.dd-h small{display:block;color:#6B6B70;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rest{flex:none;width:68px;height:28px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:600;font-size:12px;color:#1C1C1E}
+.rest .i-sun{display:none}
+.dd.resting .rest .i-sun{display:block}.dd.resting .rest .i-moon{display:none}
+.dd.resting .ai .mk{opacity:.35}.dd.resting .ring{display:none}
+.dd-b{display:grid;grid-template-columns:1.6fr 1fr;gap:8px;margin:16px 0}
+.dd-b button{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;font-weight:500;font-size:12.5px;color:#1C1C1E}
+.dd-b kbd{margin-left:auto;font:500 11px var(--ui);color:#A1A1A6}
+.dd hr{border:0;border-top:1px solid rgba(0,0,0,.08);margin:16px 0}
+.dd-g{display:grid;grid-template-columns:repeat(7,36px);gap:8px}
+.dd-g button{width:36px;height:36px;display:grid;place-items:center}
+.dd-g button.on,.dd-wx button.on{background:rgba(13,153,255,.08);border-color:rgba(13,153,255,.6)}
+.dd.wxon .dd-g button .mk{opacity:.65}
+.dd-wx{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.dd-wx button{display:flex;align-items:center;gap:4px;height:36px;padding:0 12px;font-size:12.5px;color:#6B6B70}
+.dd-wx button b{font-weight:600;color:#1C1C1E;margin-right:4px}
+.dd-wx button .t{margin-left:4px}
+.dd-wx button.on .t{color:#1C1C1E}
+.dd-wx .mk{--s:18px}
+.dd-f{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;color:#1C1C1E}
+.dd-f b{font-weight:600}
+.dd-f .kc{margin-left:auto;font:500 11px var(--ui);color:#A1A1A6}
+.dd-f .q{margin-left:16px;color:#6B6B70}
+.dd .gl:hover,.dd .gl.ghov{background:rgba(255,255,255,.85)}
+/* activity window */
+.act{position:absolute;left:50%;top:50%;width:min(520px,92%);transform:translate(-50%,-46%) scale(.98);opacity:0;pointer-events:none;z-index:8;background:#FBFBFC;color:#1A1A1A;border-radius:12px;box-shadow:0 0 0 1px rgba(0,0,0,.2),0 40px 90px rgba(0,0,0,.55);font-family:var(--ui);transition:opacity .2s,transform .35s var(--ease);overflow:hidden}
+.act.open{opacity:1;transform:translate(-50%,-50%);pointer-events:auto}
+.act-bar{height:36px;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid #E6E6E9;position:relative;background:#F3F3F5}
+.act-bar .lights i{width:11px;height:11px}
+.act-bar .ttl{position:absolute;left:50%;transform:translateX(-50%);font-size:12.5px;font-weight:600;color:#444}
+.act-in{padding:18px 20px 16px}
+.act-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.act-top small{color:#6B6B70;font-size:11.5px;display:block}
+.act-top .tot{font-size:26px;font-weight:650;letter-spacing:-.02em;line-height:1.2}
+.ex{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:#8A8A90;border:1px solid #DADADF;border-radius:4px;padding:2px 6px;text-transform:uppercase}
+.bars{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;height:120px;align-items:end;margin:18px 0 6px;position:relative}
+.bar{position:relative;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px}
+.bar i{display:block;width:100%;border-radius:4px 4px 2px 2px;background:#D9DDE6;height:0;transition:height .9s var(--ease)}
+.bar.today i{background:var(--accent)}
+.bar.ghov i{background:#AEB6C8}.bar.today.ghov i{background:var(--accent-2)}
+.bar span{font-size:11px;color:#77777C}
+.bar .tip{position:absolute;bottom:calc(var(--h) + 26px);left:50%;transform:translateX(-50%);background:#1A1A1A;color:#fff;font-size:11px;padding:3px 7px;border-radius:5px;white-space:nowrap;opacity:0;transition:opacity .15s}
+.bar.ghov .tip,.bar:hover .tip{opacity:1}
+.files{border-top:1px solid #E6E6E9;margin-top:10px}
+.file{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:9px 0;border-bottom:1px solid #EEEEF0;font-size:12.5px}
+.file .m{grid-column:1/-1;height:4px;border-radius:2px;background:#EEF0F3;overflow:hidden}
+.file .m i{display:block;height:100%;background:#1A1A1A;width:0;transition:width 1s var(--ease)}
+.file .t{color:#55555A;font-variant-numeric:tabular-nums}
+.file.live .nm::after{content:"Now";margin-left:7px;font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:1px 6px;border-radius:9px}
+.act-note{margin-top:12px;font-size:11.5px;color:#77777C}
+
+/* ghost cursor */
+.ghost{position:absolute;left:0;top:0;width:22px;height:22px;z-index:20;pointer-events:none;opacity:0;transition:opacity .3s;will-change:transform}
+.ghost.on{opacity:1}
+.ghost svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+.ghost .ring{position:absolute;left:-12px;top:-12px;width:24px;height:24px;border-radius:50%;border:2px solid var(--accent);opacity:0;transform:scale(.4)}
+.ghost.click .ring{animation:ring .45s var(--ease)}
+@keyframes ring{30%{opacity:1}to{opacity:0;transform:scale(1.5)}}
+.ghost .tagg{position:absolute;left:20px;top:20px;font:500 10px var(--mono);letter-spacing:.06em;background:var(--accent);color:#fff;padding:2px 6px;border-radius:4px;white-space:nowrap;text-transform:uppercase}
+
+/* page-switch section ------------------------------------------- */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,4vw,56px);align-items:center}
+.shot{position:relative;border-radius:16px;background:var(--paper);border:1px solid var(--line);padding:clamp(20px,3vw,36px);display:grid;place-items:center;overflow:hidden}
+.shot.dark{background:#1F1F1F;border-color:#1F1F1F}
+.feats{display:grid;gap:0;border-top:1px solid var(--line);margin-top:28px}
+.feat{display:grid;grid-template-columns:120px 1fr;gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
+.feat kbd{font:500 var(--fs-s)/var(--lh-s) var(--mono);color:var(--ink)}
+.feat kbd span{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 4px;border:1px solid var(--line);border-bottom-width:2px;border-radius:8px;background:var(--paper);margin-right:4px}
+.feat p{color:var(--ink-2);font-size:var(--fs-b);line-height:var(--lh-b)}
+.feat p b{color:var(--ink);font-weight:600}
+.chips{display:grid;gap:14px;justify-items:start;width:100%}
+.chips img{height:40px;width:auto}
+
+/* icons section --------------------------------------------------- */
+.icons{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--line);border-left:1px solid var(--line);margin-top:8px}
+.ic-t{position:relative;aspect-ratio:1/1.08;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--paper);transition:background .3s;cursor:default}
+.ic-t .mk{--s:84px}
+.ic-t .nm{font-size:var(--fs-s);line-height:var(--lh-s);font-weight:500}
+.ic-t .en{position:absolute;left:8px;top:8px}
+.ic-t .no{position:absolute;right:8px;top:8px}
+.ic-t:hover{background:var(--accent-soft)}
+.ic-t:hover .mk{filter:url(#f-accent)}
+.wx{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-5);margin-top:var(--gap-group);padding:var(--pad-bar) var(--pad-card);border:1px solid var(--line);border-radius:16px;background:var(--paper)}
+.wx .lbl{font-weight:600;font-size:var(--fs-b);line-height:var(--lh-b);margin-right:8px}
+.wx .it{display:flex;align-items:center;gap:8px;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-2)}
+.wx .it .mk{--s:28px}
+.wx .note{flex-basis:100%;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-3)}
+
+/* privacy -------------------------------------------------------- */
+.perm{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--ink);margin-top:8px}
+.perm div{padding:24px 24px 24px 0;border-right:1px solid var(--line)}
+.perm div+div{padding-left:24px}
+.perm div:last-child{border-right:0}
+.perm h3{font-size:var(--fs-h);line-height:var(--lh-h);font-weight:600;letter-spacing:-.01em;margin:8px 0 8px}
+.perm p{color:var(--ink-2);font-size:var(--fs-b);line-height:var(--lh-b)}
+.perm .when{display:inline-block;font-family:var(--mono);font-size:var(--fs-m);line-height:var(--lh-m);letter-spacing:.04em;padding:4px 8px;border-radius:4px;background:var(--paper);border:1px solid var(--line);color:var(--ink-2)}
+.perm .when.a{background:var(--accent);border-color:var(--accent);color:#fff}
+.never{margin-top:28px;display:flex;gap:16px;flex-wrap:wrap;align-items:baseline;font-size:var(--fs-h);line-height:var(--lh-h);letter-spacing:-.02em;font-weight:600}
+.never span{color:var(--ink-3);font-weight:500}
+
+/* install -------------------------------------------------------- */
+.inst{display:grid;grid-template-columns:1.1fr .9fr;gap:var(--sp-8);align-items:start}
+.cmd{display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--code-tx);border-radius:16px;padding:8px 8px 8px 20px;font:500 var(--fs-s)/var(--lh-s) var(--mono);margin-top:var(--gap-head);max-width:100%}
+.cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;scrollbar-width:none;padding:12px 0}
+.cmd code::-webkit-scrollbar{display:none}
+.cmd code span{color:var(--code-dim)}
+.copy{flex:none;height:40px;padding:0 16px;border-radius:8px;background:var(--accent);color:#fff;font:600 var(--fs-s)/var(--lh-s) var(--sans);transition:background .2s}
+.copy:hover{background:var(--accent-2)}
+.copy.ok{background:var(--ok)}
+.or{margin-top:var(--gap-line);color:var(--ink-2);font-size:var(--fs-b);line-height:var(--lh-b)}
+.or a{color:var(--accent);font-weight:500;text-underline-offset:3px}
+.steps{list-style:none;counter-reset:s;border-top:1px solid var(--line)}
+.steps li{counter-increment:s;display:grid;grid-template-columns:40px 1fr;padding:16px 0;border-bottom:1px solid var(--line);font-size:var(--fs-b);line-height:var(--lh-b);color:var(--ink-2)}
+.steps li::before{content:"0" counter(s);font:500 var(--fs-m)/var(--lh-m) var(--mono);color:var(--accent);padding-top:4px}
+.steps b{color:var(--ink);font-weight:600}
+.inst>*,.split>*{min-width:0}
+.steps code{display:inline-block;margin-top:4px;font:500 var(--fs-m)/var(--lh-m) var(--mono);background:var(--paper);border:1px solid var(--line);padding:1px 8px;border-radius:4px;word-break:break-all}
+
+footer{border-top:1px solid var(--line);padding:var(--sp-7) 0 var(--sp-8);font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-3)}
+footer .wrap{display:flex;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap;align-items:center}
+footer .r{display:flex;gap:16px}
+footer .peekrow{display:flex;gap:8px;align-items:center}
+
+/* responsive ------------------------------------------------------ */
+@media (max-width:1100px){
+  .p-buddha,.p-lotus{display:none}
+}
+@media (max-width:900px){
+  .split,.inst{grid-template-columns:1fr}
+  .icons{grid-template-columns:repeat(4,1fr)}
+  .perm{grid-template-columns:1fr}
+  .perm div{border-right:0;border-bottom:1px solid var(--line);padding:20px 0!important}
+  .sec-head{grid-template-columns:1fr}
+  .mb .menus span:nth-child(n+4){display:none}
+  .frame-wrap{width:72%}
+}
+@media (max-width:640px){
+  .hero{padding:40px 0 32px}
+  .nav nav{display:none}
+  .nav .btn{margin-left:auto}
+  .stagewin{margin:96px auto 70px}
+  .p-crane{left:2%;top:-104px}.p-pagoda{right:4%;top:-110px}
+  .p-crane .mk,.p-pagoda .mk{--s:120px!important}
+  .p-wave,.p-cat{display:none}
+  .mac-body{padding:36px 18px 30px}
+  .ctas .btn{flex:1 1 100%;justify-content:center}
+  .tabs{grid-template-columns:repeat(2,1fr)}
+  .tab .n{display:none}
+  .caption{flex-direction:column;align-items:flex-start;gap:8px}
+  .desk{border-radius:14px;margin-inline:calc(var(--gut) * -1 + 8px)}
+  .mb{gap:12px;padding:0 10px;font-size:12px}
+  .mb .menus,.mb .wifi{display:none}
+  .fwrap{padding:12px 8px 10px}
+  .f-body{height:460px}
+  .f-title{gap:8px}
+  .f-tab.alt{display:none}
+  .frame-wrap{width:90%}
+  .p-share .av,.p-share .zoom{display:none}
+  .p-tools{left:auto;right:10px;transform:none}
+  .p-tools .ib:nth-child(n+4),.p-tools .sep{display:none}
+  .p-tools{padding:5px}
+  .p-tools .ib{width:28px;height:28px}
+  .lp{width:216px}
+  .chip .nm{max-width:120px}
+  .rp{width:200px}
+  .dd{right:6px;left:6px;width:auto}
+  .act-in{padding:14px}
+  .bars{gap:6px;height:100px}
+  .icons{grid-template-columns:repeat(2,1fr)}
+  .ic-t .mk{--s:72px}
+  .feat{grid-template-columns:1fr;gap:8px}
+}
+@media (prefers-reduced-motion:reduce){
+  .mk,.p-float{animation:none!important}
+  *{transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+}
+
+/* moving icons peeking from behind the Figma desk (from A) */
+.hero{padding-bottom:96px}
+.deskstage{position:relative}
+/* 옆 Icons이 화면 밖으로 밀려나지 않게, 넓은 화면에서는 양옆에 144px씩 자리를 남긴다 */
+@media (min-width:1101px){.deskstage{width:min(100%,calc(100vw - 288px));margin-inline:auto}}
+.deskstage .desk{z-index:1}
+.under{position:relative;z-index:1}
+.deskstage .p-crane{left:8%;top:-96px}
+.deskstage .p-pagoda{right:12%;top:-96px}
+.deskstage .p-buddha{left:-152px;top:12%}
+.deskstage .p-lotus{right:-156px;top:28%}
+.deskstage .p-wave{left:-128px;bottom:4%}
+.deskstage .p-cat{right:-136px;bottom:0}
+@media (max-width:1100px){.deskstage .p-buddha,.deskstage .p-lotus,.deskstage .p-wave,.deskstage .p-cat{display:none}}
+@media (max-width:640px){
+  .hero{padding-bottom:var(--sp-8)}
+  .deskstage .p-crane{left:4%;top:-72px}.deskstage .p-pagoda{right:4%;top:-72px}
+  .deskstage .p-crane .mk,.deskstage .p-pagoda .mk{--s:112px!important}
+}
+
+/* crisp vector icons: one-colour SVG strip used as a mask, so any size stays sharp */
+.mk.v{background:currentColor;color:#000;filter:none!important;-webkit-mask:var(--img) 0 0/auto var(--s) no-repeat;mask:var(--img) 0 0/auto var(--s) no-repeat;animation-name:mkv}
+@keyframes mkv{to{-webkit-mask-position:calc(var(--n) * var(--s) * -1) 0;mask-position:calc(var(--n) * var(--s) * -1) 0}}
+.mk.v.ink{color:var(--ink)} .mk.v.inka{color:var(--accent)} .mk.v.inkw{color:#fff}
+.ic-t:hover .mk.v{color:var(--accent)}
+
+/* type scale steps down on smaller screens */
+@media (max-width:900px){:root{--gap-section:var(--sp-9);--fs-d:48px;--lh-d:56px;--fs-t:40px;--lh-t:48px}}
+@media (max-width:640px){:root{--gap-section:80px;--gap-head:var(--sp-7);--fs-d:36px;--lh-d:40px;--fs-t:32px;--lh-t:40px;--fs-h:18px;--lh-h:28px}}
+@media (max-width:640px){.hero .sub{font-size:var(--fs-b);line-height:var(--lh-b)}.hero .sub br{display:none}}
+
+/* ================= glass concept =================
+   A soft colour field drifts behind the whole page; every surface above it is frosted glass
+   (translucent white + blur + a bright top edge + one hairline). The Figma mock stays solid: it is the product. */
+.aura{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:var(--bg)}
+.aura i{position:absolute;border-radius:50%;filter:blur(80px);opacity:.5;animation:drift 36s ease-in-out infinite alternate}
+.aura i:nth-child(1){width:56vw;height:56vw;left:-12vw;top:-16vw;background:#7FA2FF}
+.aura i:nth-child(2){width:44vw;height:44vw;right:-10vw;top:12vh;background:#8FE3D0;animation-delay:-9s;animation-duration:42s}
+.aura i:nth-child(3){width:40vw;height:40vw;left:24vw;bottom:-20vw;background:#FFC9A8;opacity:.42;animation-delay:-18s;animation-duration:48s}
+.aura i:nth-child(4){width:30vw;height:30vw;right:18vw;bottom:-6vw;background:#B9C7FF;animation-delay:-4s}
+@keyframes drift{50%{transform:translate(6vw,4vh) scale(1.08)}100%{transform:translate(-4vw,8vh) scale(.95)}}
+body{background:transparent}
+.glass,.nav.scrolled,.hbar,.ctl,.wx,.perm div,.steps,.cmd,.icons{background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-shadow);border:1px solid var(--glass-edge)}
+.nav{background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
+.nav.scrolled{border-width:0 0 1px;border-color:var(--glass-edge);box-shadow:0 1px 0 var(--glass-line)}
+.btn-o,.hb.copy2{background:var(--glass-hi);border:1px solid var(--glass-line)}
+.btn-o:hover,.hb.copy2:hover{background:#fff;border-color:var(--glass-line)}
+.sec{border-top-color:var(--glass-line)}
+footer{border-top-color:var(--glass-line)}
+/* demo bar buttons */
+.ctl .btns button{background:var(--glass-hi);box-shadow:0 0 0 1px var(--glass-line) inset}
+.ctl .btns button:hover{background:#fff}
+.dashes i{background:rgba(14,15,18,.12)}
+/* icons: one glass sheet with hairline cells */
+.icons{border-radius:24px;overflow:hidden;margin-top:8px}
+.ic-t{background:transparent;border-color:var(--glass-line)}
+.ic-t:nth-child(7n){border-right:0}
+.ic-t:nth-last-child(-n+7){border-bottom:0}
+.ic-t:hover{background:rgba(29,77,255,.07)}
+.wx{border-radius:20px}
+/* privacy: three glass cards */
+.perm{border-top:0;gap:16px}
+.perm{margin-top:var(--gap-head)}
+.perm div,.perm div+div{padding:var(--pad-card);border-radius:20px}
+.perm .when{background:var(--glass-hi);border-color:var(--glass-line)}
+/* install */
+.cmd{color:var(--ink);border-radius:1000px;padding:8px 8px 8px 24px}
+.cmd code span{color:var(--ink-3)}
+.copy{border-radius:1000px}
+.steps{border-radius:20px;padding:var(--sp-2) var(--pad-card)}
+.steps li:last-child{border-bottom:0}
+.steps li{border-bottom-color:var(--glass-line)}
+.steps code{background:var(--glass-hi);border-color:var(--glass-line)}
+@media (max-width:900px){.ic-t:nth-child(7n){border-right:1px solid var(--glass-line)}.ic-t:nth-child(4n){border-right:0}.ic-t:nth-last-child(-n+7){border-bottom:1px solid var(--glass-line)}.perm div{padding:24px!important;border-bottom:1px solid var(--glass-edge)}}
+@media (max-width:640px){.ic-t:nth-child(4n){border-right:1px solid var(--glass-line)}.ic-t:nth-child(2n){border-right:0}.cmd{border-radius:20px}}
+@media (prefers-reduced-motion:reduce){.aura i{animation:none}}
+
+/* weather sheet: same big tiles as the icons, set apart as its own sheet with a sky tint */
+.wxs{margin-top:var(--sp-7)}
+.wxs-h{display:flex;align-items:center;gap:var(--sp-2);margin-bottom:var(--sp-4);font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-3)}
+.wxs-h b{color:var(--ink);font-weight:600}
+.wxs-h svg{color:var(--accent)}
+.icons.wxg{grid-template-columns:repeat(8,1fr);background:linear-gradient(180deg,rgba(214,228,255,.55),rgba(232,244,255,.45))}
+.wxg .ic-t{border-bottom:0;border-right:1px solid var(--glass-line)}
+.wxg .ic-t:nth-child(8n){border-right:0}
+.wxg .ic-t .mk{--s:64px}
+@media (max-width:900px){.icons.wxg{grid-template-columns:repeat(4,1fr)}.wxg .ic-t:nth-child(4n){border-right:0}.wxg .ic-t:nth-child(-n+4){border-bottom:1px solid var(--glass-line)}}
+@media (max-width:640px){.wxg .ic-t .mk{--s:48px}.wxg .ic-t:nth-child(4n+2){border-right:1px solid var(--glass-line)}}
+
+/* feature sections: text + one visual, alternating sides */
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-8);align-items:center}
+.fgrid.rev .ftxt{order:2}
+.fpts{list-style:none;margin-top:var(--sp-7);display:grid;gap:var(--sp-4)}
+.fpts li{display:flex;align-items:center;gap:var(--sp-4);font-size:var(--fs-b);line-height:var(--lh-b);color:var(--ink-2)}
+.fpts em{font-style:normal;color:var(--ink-3);font-size:var(--fs-s);margin-left:var(--sp-2)}
+.fpts kbd{flex:none;min-width:56px;height:32px;padding:0 var(--sp-2);display:inline-grid;place-items:center;border-radius:8px;font:500 var(--fs-s)/var(--lh-s) var(--mono);color:var(--ink);
+  background:var(--glass-hi);border:1px solid var(--glass-edge);box-shadow:0 0 0 1px var(--glass-line)}
+.fpts kbd.warm{color:#C2570C}
+.fpts kbd.ring-k::before{content:"";width:16px;height:16px;border-radius:5px;border:2px solid var(--ink-3);border-left-color:transparent;border-bottom-color:transparent;transform:rotate(45deg)}
+.fvis{min-width:0}
+/* mini screen: edge reveal loop */
+.mini{position:relative;aspect-ratio:16/10;border-radius:16px;overflow:hidden;background:#1E1E1E;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 32px 64px -32px rgba(14,15,18,.6);
+  background-image:radial-gradient(circle at 1px 1px,#2A2A2A 1px,transparent 0);background-size:16px 16px}
+.mini-frame{position:absolute;left:34%;top:24%;width:44%;height:52%;background:#fff;border-radius:4px;box-shadow:0 0 0 1.5px var(--f-blue)}
+.mini-panel{position:absolute;left:12px;top:12px;bottom:12px;width:30%;border-radius:10px;background:#2C2C2C;border:1px solid #3D3D3D;padding:16px 12px;display:grid;align-content:start;gap:12px;
+  transform:translateX(-110%);animation:mp 5s var(--ease) infinite}
+.mini-panel i{height:4px;border-radius:2px;background:#555}.mini-panel i:nth-child(2){width:60%;background:var(--f-blue)}.mini-panel i:nth-child(4){width:70%}
+.mini-edge{position:absolute;left:0;top:8%;bottom:8%;width:3px;border-radius:2px;background:var(--accent);opacity:0;animation:me 5s infinite}
+.mini .cur{position:absolute;width:16px;height:20px;left:62%;top:52%;animation:mc 5s var(--ease) infinite}
+@keyframes mc{0%,8%{left:62%;top:52%}28%,34%{left:1%;top:46%}48%{left:14%;top:40%}62%{left:16%;top:56%}74%,100%{left:62%;top:52%}}
+@keyframes mp{0%,30%{transform:translateX(-110%)}36%,72%{transform:none}82%,100%{transform:translateX(-110%)}}
+@keyframes me{0%,26%{opacity:0}29%,34%{opacity:1;box-shadow:0 0 16px 4px rgba(29,77,255,.6)}40%,100%{opacity:0}}
+/* page jump: real renders of the finder and chip */
+.dark-shot{display:grid;place-items:center}
+.pal-img{width:64%;filter:drop-shadow(0 24px 40px rgba(0,0,0,.5))}
+.chip-img{position:absolute;left:16px;bottom:16px;height:36px;width:auto}
+/* activity card */
+.act-mini{border-radius:20px;padding:var(--sp-5);background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
+.am-top{display:flex;align-items:center;gap:var(--sp-4)}
+.am-ring{width:50px;height:50px;flex:none}
+.am-ring path{fill:none;stroke-width:2.5;stroke-linecap:round}.am-ring .trk{stroke:rgba(14,15,18,.08)}.am-ring .day{stroke:#E8851A;stroke-dasharray:44 100}
+.am-top b{display:block;font-size:var(--fs-h);line-height:var(--lh-h);font-weight:600}
+.am-top small{display:block;font-size:var(--fs-s);line-height:var(--lh-s);color:#C2570C}
+.am-rest{margin-left:auto;height:32px;padding:0 var(--sp-4);display:inline-grid;place-items:center;border-radius:8px;font-size:var(--fs-s);font-weight:600;background:var(--glass-hi);box-shadow:0 0 0 1px var(--glass-line)}
+.am-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--sp-3);align-items:end;height:128px;margin-top:var(--sp-6)}
+.am-bars i{display:block;height:calc(var(--h) * 100%);border-radius:6px 6px 2px 2px;background:rgba(29,77,255,.22)}
+.am-bars i.t{background:var(--accent)}
+.am-days{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--sp-3);margin-top:var(--sp-2);text-align:center;font-size:var(--fs-m);line-height:var(--lh-m);color:var(--ink-3)}
+@media (max-width:900px){.fgrid{grid-template-columns:1fr;gap:var(--sp-7)}.fgrid.rev .ftxt{order:0}}
+@media (prefers-reduced-motion:reduce){.mini-panel{animation:none;transform:none}.mini .cur,.mini-edge{animation:none}}
+
+/* feature section composition: label | big title + one-line lede; then key rows | a card with the real screen */
+.fhead{display:block}
+.fhead .label{margin-top:var(--sp-3)}
+.flede{margin-top:var(--sp-5);max-width:40em;font-size:var(--fs-b);line-height:var(--lh-b);color:var(--ink-2)}
+.fbody{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-8);align-items:start;margin-top:var(--sp-7)}
+.krows{list-style:none;border-top:1px solid var(--glass-line)}
+.krows li{display:flex;align-items:center;gap:var(--sp-5);padding:var(--sp-5) 0;border-bottom:1px solid var(--glass-line)}
+.krows .kk{display:flex;gap:var(--sp-2);flex:none;min-width:136px}
+.krows kbd{min-width:40px;height:40px;padding:0 var(--sp-3);display:inline-grid;place-items:center;border-radius:10px;font:500 var(--fs-b)/var(--lh-b) var(--sans);color:var(--ink);
+  background:var(--glass-hi);border:1px solid var(--glass-edge);box-shadow:0 0 0 1px var(--glass-line),0 2px 0 rgba(14,15,18,.06)}
+.krows kbd.warm{color:#C2570C;font-family:var(--mono);font-size:var(--fs-s)}
+.krows kbd.ic{color:var(--ink-2)}
+.krows .kt b{display:block;font-size:var(--fs-b);line-height:var(--lh-b);font-weight:600}
+.krows .kt small{display:block;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-3)}
+.fnote{margin-top:var(--sp-5);font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-3)}
+.fshot{border-radius:24px;padding:var(--sp-5);background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
+.fshot>p{margin-bottom:var(--sp-4)}
+.fshot .mini{border-radius:16px}
+.fshot .act-mini{background:var(--glass-hi);box-shadow:0 0 0 1px var(--glass-line);border:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+@media (max-width:900px){.fhead,.fbody{grid-template-columns:1fr;gap:var(--sp-7)}.fhead{gap:var(--sp-4)}}
+@media (max-width:640px){.krows .kk{min-width:0}.krows kbd{min-width:32px;height:32px;font-size:var(--fs-s)}.krows li{gap:var(--sp-4)}}
+
+/* reveal section mock: a small real-looking Figma window that loops the gesture (6 s)
+   0–1.2 s pointer to the left edge · edge glows · panel slides out (page chip steps aside)
+   pointer browses the layers · moves away · panel folds back, chip returns */
+.rv{position:relative;border-radius:14px;overflow:hidden;background:#1E1E1E;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 32px 64px -32px rgba(14,15,18,.6);font-family:var(--ui);color:#E6E6E6}
+.rv-bar{height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;background:#2C2C2C;border-bottom:1px solid #1A1A1A;font-size:10px}
+.rv-lights{display:flex;gap:5px;margin-right:6px}.rv-lights i{width:8px;height:8px;border-radius:50%;background:#FF5F57}.rv-lights i:nth-child(2){background:#FEBC2E}.rv-lights i:nth-child(3){background:#28C840}
+.rv-tab{padding:4px 10px;border-radius:5px 5px 0 0;background:#1E1E1E;align-self:flex-end}.rv-tab.dim{background:none;color:#8A8A8A}
+.rv-body{position:relative;aspect-ratio:16/10;background-color:#1E1E1E;background-image:radial-gradient(circle at 1px 1px,#2A2A2A 1px,transparent 0);background-size:12px 12px;overflow:hidden}
+.rv-share{position:absolute;top:8px;right:8px;display:flex;align-items:center;gap:2px;padding:4px;border-radius:8px;background:#2C2C2C;border:1px solid #3D3D3D}
+.rv-share i{width:14px;height:14px;border-radius:50%;border:1.5px solid #2C2C2C;margin-left:-4px}.rv-share i:first-child{margin-left:0}
+.rv-share b{margin-left:4px;font-size:9px;font-weight:600;color:#fff;background:#0D99FF;padding:3px 7px;border-radius:4px}
+.rv-frame{position:absolute;left:22%;top:16%;width:60%}
+.rv-flbl{display:block;font-size:8px;color:#A8A8A8;margin-bottom:3px}
+.rv-page{display:flex;aspect-ratio:16/10;background:#fff;color:#111}
+.rv-side{width:20%;background:#F4F5F7;border-right:1px solid #ECEDF0;padding:10% 4%;display:grid;align-content:start;gap:8%}
+.rv-side i{display:block;height:4px;border-radius:2px;background:#D6D8DD}.rv-side .lg{width:40%;aspect-ratio:1;height:auto;border-radius:30%;background:#111}.rv-side .on{background:#111}
+.rv-main{flex:1;padding:5%;display:grid;align-content:start;gap:7%}
+.rv-h{font-size:10px;font-weight:600}
+.rv-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:5%}
+.rv-cards div{border:1px solid #ECEDF0;border-radius:4px;padding:6%;display:grid;gap:4px}
+.rv-cards s{display:block;width:45%;height:3px;background:#D6D8DD;border-radius:2px}
+.rv-cards b{font-size:8px;font-weight:600}
+.rv-cards .sel{box-shadow:0 0 0 1.5px #0D99FF}
+.rv-chart{width:100%;height:auto;aspect-ratio:200/60}
+.rv-tools{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:3px;padding:3px;border-radius:8px;background:#2C2C2C;border:1px solid #3D3D3D}
+.rv-tools i{width:16px;height:16px;border-radius:4px;background:#3A3A3A}.rv-tools i.on{background:#0D99FF}
+.rv-chip{position:absolute;left:8px;bottom:8px;display:flex;align-items:center;gap:5px;height:24px;padding:0 6px 0 7px;border-radius:6px;background:#3A3A3A;border:1px solid #4A4A4A;font-size:9px;font-weight:500;
+  animation:rvChip 6s var(--ease) infinite}
+.rv-chip svg{width:8px;height:10px;color:#EDEDED}.rv-chip span{color:#E6E6E6;margin-left:2px}
+.rv-panel{position:absolute;left:0;top:0;bottom:0;width:34%;background:#2C2C2C;border-right:1px solid #3D3D3D;font-size:8.5px;transform:translateX(-102%);animation:rvPanel 6s var(--ease) infinite}
+.rv-ph{padding:8px 8px 4px}.rv-ph b{display:block;font-size:9px}.rv-ph small{color:#7A7A7A;font-size:8px}
+.rv-tabs{display:flex;gap:3px;padding:2px 8px 5px;border-bottom:1px solid #3D3D3D}.rv-tabs span{padding:2px 5px;border-radius:3px;color:#A8A8A8}.rv-tabs .on{background:#383838;color:#F2F2F2}
+.rv-sec{padding:6px 8px 2px;font-weight:600;color:#F2F2F2}
+.rv-row{position:relative;z-index:1;display:flex;align-items:center;gap:4px;height:15px;padding:0 6px 0 calc(8px + var(--ind) * 8px);white-space:nowrap;overflow:hidden;color:#E6E6E6}
+.rv-row i{width:8px;height:8px;color:#8A8A8A;flex:none;display:grid}.rv-row svg{width:8px;height:8px}
+.rv-row.cur{font-weight:600}.rv-row.comp i{color:#B57CFF}.rv-row.sel{background:#4A5878}
+.rv-hov{position:absolute;left:4px;right:4px;height:15px;top:calc(56% + 0px);border-radius:3px;background:rgba(255,255,255,.07);animation:rvHov 6s var(--ease) infinite}
+.rv-edge{position:absolute;left:0;top:6%;bottom:6%;width:3px;border-radius:2px;background:var(--accent);opacity:0;animation:rvEdge 6s infinite}
+.rv-cur{position:absolute;width:12px;height:15px;left:58%;top:58%;z-index:5;animation:rvCur 6s var(--ease) infinite}
+@keyframes rvCur{0%,8%{left:58%;top:58%}22%,27%{left:.5%;top:50%}36%{left:12%;top:58%}46%{left:16%;top:68%}56%{left:14%;top:78%}66%{left:16%;top:70%}76%,100%{left:58%;top:58%}}
+@keyframes rvEdge{0%,20%{opacity:0;box-shadow:none}23%,28%{opacity:1;box-shadow:0 0 14px 4px rgba(29,77,255,.65)}34%,100%{opacity:0;box-shadow:none}}
+@keyframes rvPanel{0%,26%{transform:translateX(-102%)}31%,74%{transform:none}80%,100%{transform:translateX(-102%)}}
+@keyframes rvChip{0%,24%{opacity:1;transform:none}29%,76%{opacity:0;transform:translateY(3px)}82%,100%{opacity:1;transform:none}}
+@keyframes rvHov{0%,34%{top:58%;opacity:0}38%{top:58%;opacity:1}46%{top:66%}56%{top:76%}66%{top:68%;opacity:1}72%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.rv-panel{animation:none;transform:none}.rv-chip{animation:none;opacity:0}.rv-cur,.rv-edge,.rv-hov{animation:none}}
+
+/* feature rows: a pictogram, a title and one explaining line (shortcuts sit inline, small) */
+.krows li{align-items:flex-start}
+.krows .fi{flex:none;width:40px;height:40px;display:grid;place-items:center;border-radius:10px;color:var(--ink);background:var(--glass-hi);border:1px solid var(--glass-edge);box-shadow:0 0 0 1px var(--glass-line)}
+.krows .fi svg{width:20px;height:20px}
+.krows .fi.warm{color:#C2570C}
+.krows .kt small{margin-top:var(--sp-1);color:var(--ink-2);font-size:var(--fs-s);line-height:var(--lh-s)}
+.krows .kt small kbd{min-width:0;height:auto;padding:0 var(--sp-1);display:inline;border-radius:4px;font:500 var(--fs-m)/var(--lh-m) var(--sans);color:var(--ink);background:var(--glass-hi);border:1px solid var(--glass-line);box-shadow:none}
+.am-lbl{margin-top:var(--sp-6);margin-bottom:var(--sp-3)}
+.am-lbl+.am-bars{margin-top:0}
+
+/* activity: the real Activity window (Summary.swift), glass like the app, with sample data */
+.act-sec .fbody{grid-template-columns:.8fr 1.2fr}
+.fshot.real{padding:var(--sp-5)}
+.aw{border-radius:12px;overflow:hidden;background:rgba(246,246,248,.82);box-shadow:0 0 0 .5px rgba(0,0,0,.14),0 24px 48px -24px rgba(14,15,18,.45);font-family:var(--ui);color:#1C1C1E}
+.aw-bar{position:relative;height:28px;display:flex;align-items:center;padding:0 10px}
+.aw-bar b{position:absolute;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:#8A8A90}
+.aw-lights{display:flex;gap:6px}.aw-lights i{width:10px;height:10px;border-radius:50%;background:#FF5F57}.aw-lights i:nth-child(2){background:#FEBC2E}.aw-lights i:nth-child(3){background:#28C840}
+.aw-in{padding:8px 18px 16px}
+.aw-head{display:flex;justify-content:space-between;align-items:flex-start}
+.aw-head b{display:block;font-size:15px;font-weight:600}.aw-head small{font-size:10.5px;color:#6B6B70}
+.aw-nav{display:flex;gap:4px}.aw-nav span{height:22px;min-width:22px;padding:0 7px;display:grid;place-items:center;border-radius:6px;font-size:10px;font-weight:500;background:rgba(255,255,255,.6);box-shadow:0 0 0 .5px rgba(0,0,0,.1)}
+.aw-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+.aw-stats div{border-radius:8px;padding:7px 8px;background:rgba(255,255,255,.55);box-shadow:0 0 0 .5px rgba(0,0,0,.08);min-height:44px}
+.aw-stats small{display:block;font-size:9px;color:#6B6B70}.aw-stats b{display:block;font-size:12px;font-weight:600;white-space:nowrap}.aw-stats em{font-style:normal;font-size:8px;color:#8A8A90;white-space:nowrap}
+.aw-h{margin:12px 0 6px;font-size:10px;font-weight:600}
+.aw-chart{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;height:84px;align-items:end}
+.aw-day{display:grid;grid-template-rows:1fr auto;height:100%;gap:3px;text-align:center}.aw-day span{font-size:8.5px;color:#8A8A90}
+.aw-col{display:flex;flex-direction:column-reverse;justify-content:flex-start;border-radius:3px 3px 1px 1px;overflow:hidden}
+.aw-col i{display:block;height:calc(var(--h) * 100%)}.aw-col .f{background:#0A84FF}.aw-col .o{background:rgba(10,132,255,.35)}
+.aw-legend{display:flex;gap:10px;margin-top:4px;font-size:8.5px;color:#6B6B70}
+.aw-legend span::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;background:#0A84FF}.aw-legend .o::before{background:rgba(10,132,255,.35)}
+.aw-rank{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.aw-rank ul{list-style:none}.aw-rank li{display:grid;grid-template-columns:1fr auto;gap:2px 6px;padding:3px 0;font-size:9.5px}
+.aw-rank .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.aw-rank em{font-style:normal;color:#A1A1A6;font-size:8.5px}.aw-rank .t{color:#6B6B70}
+.aw-rank li i{grid-column:1/-1;height:2.5px;border-radius:2px;background:#0A84FF;width:calc(var(--w) * 100%);opacity:.75}
+.aw-foot{display:flex;gap:12px;margin-top:10px;font-size:9.5px;color:#6B6B70}
+.aw-foot span{display:inline-flex;align-items:center;gap:3px}.aw-foot svg{width:11px;height:11px}.aw-foot .lock{margin-left:auto;color:#A1A1A6}
+.aw-btns{display:flex;justify-content:space-between;margin-top:10px}
+.aw-btns span{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:6px;font-size:9.5px;font-weight:500;background:rgba(255,255,255,.6);box-shadow:0 0 0 .5px rgba(0,0,0,.1)}
+.aw-btns svg{width:11px;height:11px}.aw-btns .del{color:#E5484D}
+.aw-strip{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-4);padding:var(--sp-3) var(--sp-4);border-radius:12px;background:var(--glass-hi);box-shadow:0 0 0 1px var(--glass-line)}
+.aw-strip .am-ring{width:36px;height:36px}
+.aw-strip b{display:block;font-size:var(--fs-s);line-height:var(--lh-s);font-weight:600}.aw-strip small{display:block;font-size:var(--fs-m);line-height:var(--lh-m);color:#C2570C}
+.aw-strip>span{margin-left:auto}
+/* keep the section short: show the real window's top half (numbers + week chart) and fade the rest out */
+.aw-in{max-height:300px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 78%,transparent);mask-image:linear-gradient(#000 78%,transparent)}
+.aw-rank,.aw-foot,.aw-btns{display:none}
+@media (max-width:900px){.act-sec .fbody{grid-template-columns:1fr}}
+@media (max-width:640px){.aw-stats{grid-template-columns:repeat(2,1fr)}.aw-rank{grid-template-columns:1fr}}
+
+/* finale: one big glass card with a strong colour glow, the scenes drifting across, a large centred line */
+.fin{border-top:0}
+.fin-card{position:relative;overflow:hidden;border-radius:32px;padding:var(--sp-9) var(--sp-8) var(--sp-8);text-align:center;
+  background:linear-gradient(160deg,rgba(255,255,255,.62),rgba(255,255,255,.38));-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow),0 64px 120px -48px rgba(29,77,255,.45)}
+.fin-card::before{content:"";position:absolute;inset:-40% -10% auto;height:120%;z-index:-1;
+  background:radial-gradient(40% 50% at 30% 40%,rgba(127,162,255,.55),transparent 70%),radial-gradient(35% 45% at 72% 35%,rgba(143,227,208,.5),transparent 70%)}
+.fin-rail{position:relative;height:64px;margin:0 calc(var(--sp-8) * -1) var(--sp-8);overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(90deg,transparent,#000 15%,#000 85%,transparent)}
+.fin-track{display:flex;gap:var(--sp-8);width:max-content;animation:finDrift 60s linear infinite}
+.fin-track .mk{--s:56px;color:var(--ink)}
+@keyframes finDrift{to{transform:translateX(-50%)}}
+.fin-h{font-size:var(--fs-t);line-height:var(--lh-t);letter-spacing:-.032em;font-weight:700}   /* Sections 제목과 같은 Title 단계·굵기 */
+.fin-sub{margin-top:var(--sp-5);font-size:var(--fs-h);line-height:var(--lh-h);color:var(--ink-2)}
+.fin-bar{margin:var(--sp-7) auto 0}
+.fin-notes{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-7);margin-top:var(--sp-8);padding-top:var(--sp-7);border-top:1px solid var(--glass-line);text-align:left}
+.fin-notes b{display:block;font-size:var(--fs-b);line-height:var(--lh-b);font-weight:600}
+.fin-notes p{margin-top:var(--sp-2);font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-2)}
+.fin-notes code{font:500 var(--fs-m)/var(--lh-m) var(--mono);background:var(--glass-hi);border:1px solid var(--glass-line);padding:1px 6px;border-radius:4px;word-break:break-all}
+@media (max-width:900px){.fin-notes{grid-template-columns:1fr;gap:var(--sp-5)}.fin-card{padding:var(--sp-8) var(--sp-5) var(--sp-7)}.fin-rail{margin:0 calc(var(--sp-5) * -1) var(--sp-7)}}
+@media (prefers-reduced-motion:reduce){.fin-track{animation:none}}
+
+.net{display:flex;align-items:flex-start;gap:var(--sp-3);margin-top:var(--sp-5);padding:var(--sp-4) var(--sp-5);border-radius:16px;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-2);
+  background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
+.net svg{flex:none;margin-top:2px;color:var(--accent)}
+.net b{color:var(--ink);font-weight:600}
+
+.lang{margin-left:var(--sp-4);font:500 var(--fs-m)/var(--lh-m) var(--mono);letter-spacing:.04em;color:var(--ink-2);text-decoration:none;padding:var(--sp-1) var(--sp-2);border-radius:6px;border:1px solid var(--glass-line)}
+.lang:hover{color:var(--ink);background:var(--glass-hi)}
+.lang+.btn{margin-left:var(--sp-3)}
+@media (max-width:640px){.nav .lang{margin-left:auto}.nav .lang+.btn{margin-left:var(--sp-2)}}
+
+html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에 가로 스크롤이 생기지 않게 */
+</style>
+</head>
+<body>
+<div class="aura" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<!-- tint filters: threshold the soft upscaled sprite, then fill with one colour -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="f-ink" color-interpolation-filters="sRGB"><feComponentTransfer in="SourceAlpha" result="a"><feFuncA type="linear" slope="4.6" intercept="-1.75"/></feComponentTransfer><feFlood flood-color="#0E0F12"/><feComposite in2="a" operator="in"/></filter>
+    <filter id="f-accent" color-interpolation-filters="sRGB"><feComponentTransfer in="SourceAlpha" result="a"><feFuncA type="linear" slope="4.6" intercept="-1.75"/></feComponentTransfer><feFlood flood-color="#1D4DFF"/><feComposite in2="a" operator="in"/></filter>
+    <filter id="f-white" color-interpolation-filters="sRGB"><feFlood flood-color="#FFFFFF"/><feComposite in2="SourceAlpha" operator="in"/></filter>
+  </defs>
+</svg>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="../assets/app-icon.png" alt="">Layerhover</a>
+    <nav aria-label="Sections">
+      <a href="#reveal">Edge reveal</a><a href="#jump">Pages</a><a href="#icons">Icons</a><a href="#activity">Activity</a><a href="#privacy">Privacy</a><a href="#install">Install</a>
+    </nav>
+    <a class="lang" href="../" hreflang="ko" lang="ko" title="한국어">한국어</a>
+    <a class="btn btn-o" href="https://github.com/kjh13242/layerhover/releases/latest/download/Layerhover.zip">Get</a>
+  </div>
+</header>
+
+<main id="top">
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap hero-in">
+    <h1>Keep panels folded,<br><span>bring them out at the edge.</span></h1>
+    <p class="sub">A free macOS helper for the Figma desktop app. <br>Push the pointer to the left edge and the layers panel comes out.</p>
+    <div class="hbar">
+      <code><span>$ </span>brew install --cask kjh13242/layerhover/layerhover</code>
+      <button class="hb copy2" data-copy="brew install --cask kjh13242/layerhover/layerhover">Copy</button>
+      <a class="hb dl" href="https://github.com/kjh13242/layerhover/releases/latest/download/Layerhover.zip">Download zip <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 1.5v8M2.5 6 6 9.5 9.5 6"/></svg></a>
+    </div>
+    <div class="meta mono nc"><span>macOS 13+</span></div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section class="sec" id="demo">
+  <div class="wrap">
+    <div class="deskstage">
+    <div class="peek p-crane"><div class="p-float"><div class="mk inka" data-m="crane" style="--s:168px"></div></div></div>
+    <div class="peek p-pagoda"><div class="p-float" style="animation-delay:-2s"><div class="mk ink" data-m="pagoda" style="--s:160px"></div></div></div>
+    <div class="peek p-buddha"><div class="p-float" style="animation-delay:-4s"><div class="mk ink" data-m="surf" style="--s:200px"></div></div></div>
+    <div class="peek p-lotus"><div class="p-float" style="animation-delay:-1s"><div class="mk ink" data-m="magnolia" style="--s:176px"></div></div></div>
+    <div class="peek p-wave"><div class="p-float" style="animation-delay:-3s"><div class="mk ink" data-m="lotus" style="--s:200px"></div></div></div>
+    <div class="peek p-cat"><div class="mk ink" data-m="cat" style="--s:176px"></div></div>
+    <div class="desk" id="desk">
+      <div class="mb">
+        <svg class="apple" viewBox="0 0 14 17" fill="currentColor" aria-hidden="true"><path d="M11.6 9c0-2 1.7-3 1.8-3.1-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.1.8-.7 0-1.7-.8-2.7-.7C3.2 4.4 2 5.2 1.3 6.4c-1.5 2.6-.4 6.4 1 8.5.7 1 1.5 2.1 2.6 2.1 1 0 1.4-.7 2.7-.7s1.6.7 2.7.7c1.1 0 1.8-1 2.5-2 .8-1.2 1.1-2.3 1.1-2.4 0 0-2.3-.8-2.3-3.6ZM9.5 3c.6-.7 1-1.6.9-2.6-.8 0-1.8.6-2.4 1.3-.5.6-1 1.6-.9 2.5.9.1 1.8-.5 2.4-1.2Z"/></svg>
+        <b>Figma</b>
+        <div class="menus"><span>File</span><span>Edit</span><span>View</span><span>Object</span><span>Text</span><span>Arrange</span><span>Plugins</span><span>Help</span></div>
+        <div class="right">
+          <button class="lh" id="lh" aria-label="Layerhover menu"><span class="mk" id="lhMark" data-m="buddha"></span><span class="tmp">20°</span></button>
+          <svg class="wifi" width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0L8 11.5Zm-4-4.1-1.3-1.3a7.5 7.5 0 0 1 10.6 0L12 7.4a5.6 5.6 0 0 0-8 0ZM1.3 4.7 0 3.4a11.3 11.3 0 0 1 16 0l-1.3 1.3a9.4 9.4 0 0 0-13.4 0Z"/></svg>
+          <span id="clock">Thu 3:42 PM</span>
+        </div>
+      </div>
+
+      <!-- Layerhover dropdown -->
+      <!-- Layerhover menu bar panel — same structure as the app (MenuPanel.swift) -->
+      <div class="dd" id="dd" aria-hidden="true">
+        <div class="dd-h">
+          <div class="ai"><svg class="ring" viewBox="0 0 50 50" aria-hidden="true"><path class="trk" pathLength="100" d="M25 2H36A12 12 0 0 1 48 14V36A12 12 0 0 1 36 48H14A12 12 0 0 1 2 36V14A12 12 0 0 1 14 2Z"/><path class="day" pathLength="100" d="M25 2H36A12 12 0 0 1 48 14V36A12 12 0 0 1 36 48H14A12 12 0 0 1 2 36V14A12 12 0 0 1 14 2Z"/></svg><span class="mk" id="ddMark" data-m="buddha" style="--s:22px"></span></div>
+          <div class="nm"><b>Layerhover</b><small id="ddLine">2 hr 40 min today</small></div>
+          <button class="rest gl" id="restBtn" aria-label="Rest"><svg class="i-moon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11.5 10.6A4.8 4.8 0 0 1 6.4 4a4.8 4.8 0 1 0 5.1 6.6Z"/><path d="M11 3h2l-2 2h2" stroke-width="1"/></svg><svg class="i-sun" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="2.6"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1 1M11.2 11.2l1 1M3.8 12.2l1-1M11.2 4.8l1-1"/></svg><span id="restT">Rest</span></button>
+        </div>
+        <div class="dd-b"><button class="gl" data-act="pal"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4 2.5h5.5L12 5v8.5H4z"/><circle cx="8" cy="9" r="1.8"/><path d="m9.4 10.4 1.4 1.4"/></svg>Figma Page<kbd>⌃⌥P</kbd></button><button class="gl" data-act="log"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="1.8" height="6" rx=".5"/><rect x="6" y="4" width="1.8" height="9" rx=".5"/><rect x="9" y="6" width="1.8" height="7" rx=".5"/><rect x="12" y="9" width="1.8" height="4" rx=".5"/><rect x="2" y="13.4" width="12" height="1" rx=".5"/></svg>Activity</button></div>
+        <hr>
+        <div class="dd-g" id="ddGrid"></div>
+        <div class="dd-wx">
+          <button class="gl" id="wxA" aria-label="Weather"><span class="mk still" data-m="wx-clear"></span><span class="t">Weather</span></button>
+          <button class="gl" id="wxB" aria-label="+ Temp"><span class="mk still" data-m="wx-clear"></span><b>20°</b><span class="t">+ Temp</span></button>
+        </div>
+        <hr>
+        <div class="dd-f"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="2.2"/><path d="M8 2v1.8M8 12.2V14M2 8h1.8M12.2 8H14M3.8 3.8l1.3 1.3M10.9 10.9l1.3 1.3M3.8 12.2l1.3-1.3M10.9 5.1l1.3-1.3"/></svg><b>Settings…</b><kbd class="kc">⌘,</kbd><span class="q">Quit</span></div>
+      </div>
+
+      <div class="fwrap">
+        <div class="fig" id="fig">
+          <div class="f-title">
+            <span class="lights"><i></i><i></i><i></i></span>
+            <span class="home"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 6.5 7 2l5 4.5V12H8.5V9h-3v3H2z"/></svg></span>
+            <div class="f-tabs"><div class="f-tab on">Sample App <span class="x">×</span></div><div class="f-tab alt">Design System</div></div>
+          </div>
+          <div class="f-body" id="fbody">
+            <div class="canvas"><div class="frame-wrap" id="fwrapF"><div class="frame-lbl" id="frameLbl">Home / Dashboard</div><div class="frame" id="frame"></div></div></div>
+
+            <div class="pill p-file"><span class="ib"><svg width="14" height="14" viewBox="0 0 38 57"><path fill="#F24E1E" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z" style="fill:#1ABCFE"/><path fill="#0ACF83" d="M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 1 1-19 0z"/><path fill="#FF7262" d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19H19z"/><path fill="#F24E1E" d="M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z"/><path fill="#A259FF" d="M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z"/></svg></span><span class="nm">Sample App</span><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#A8A8A8" stroke-width="1.2"><path d="m1.5 3 2.5 2.5L6.5 3"/></svg><span class="ib" title="Show panels"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="2" width="11" height="10" rx="1.5"/><path d="M5 2v10"/></svg></span></div>
+            <div class="pill p-share"><span class="av" style="background:#E5484D">J</span><span class="av" style="background:#12A594">S</span><span class="ib"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M3 1.5v9l7-4.5z"/></svg></span><span class="share">Share</span><span class="zoom">100%</span></div>
+            <div class="pill p-tools" aria-hidden="true">
+              <span class="ib on"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M2.5 1.5 11 6.2 7 7.3 5.3 11z"/></svg></span>
+              <span class="ib"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4 1v12M10 1v12M1 4h12M1 10h12"/></svg></span>
+              <span class="ib"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="10" height="10" rx="1"/></svg></span>
+              <span class="ib"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 12 5.5 3 9 8l3-3"/><circle cx="12" cy="5" r="1"/></svg></span>
+              <span class="ib"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 3h9M7 3v9"/></svg></span>
+              <span class="ib"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M7 12A5 5 0 1 0 2.4 9L2 12l3-.6c.6.4 1.3.6 2 .6z"/></svg></span>
+              <span class="sep"></span>
+              <span class="ib"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 7h3l1.5-4 2 8L10 7h2"/></svg></span>
+              <span class="ib"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4.5 4 1.5 7l3 3M9.5 4l3 3-3 3"/></svg></span>
+            </div>
+
+            <!-- Layerhover page chip -->
+            <div class="chip" id="chip"><svg width="12" height="14" viewBox="0 0 12 14" fill="none" stroke="#EDEDED" stroke-width="1.2"><path d="M1.5 1.5h6l3 3v8h-9z"/><path d="M7.5 1.5v3h3"/></svg><span class="nm" id="chipNm">Home / Dashboard</span><button id="cPrev" aria-label="Previous page"><svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 1.5 1.5 6 6 10.5"/></svg></button><button id="cNext" aria-label="Next page"><svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 1.5 6.5 6 2 10.5"/></svg></button></div>
+
+            <!-- left layers panel -->
+            <aside class="lp" id="lp" aria-label="Layers panel (mock)">
+              <div class="lp-h"><svg width="12" height="18" viewBox="0 0 38 57"><path fill="#1ABCFE" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z"/><path fill="#0ACF83" d="M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 1 1-19 0z"/><path fill="#FF7262" d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19H19z"/><path fill="#F24E1E" d="M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z"/><path fill="#A259FF" d="M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z"/></svg><div><div class="nm">Sample App</div><div class="sub">Drafts</div></div><span class="ib"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="2" width="11" height="10" rx="1.5"/><path d="M5 2v10"/></svg></span></div>
+              <div class="lp-tabs"><span class="on">File</span><span>Assets</span></div>
+              <div class="lp-sec">Pages <span class="p">+</span></div>
+              <div class="pgs" id="pgs"></div>
+              <div class="lp-sec">Layers</div>
+              <div class="lys" id="lys"></div>
+            </aside>
+
+            <!-- right props panel -->
+            <aside class="rp" id="rp" aria-hidden="true">
+              <div class="rp-top"><span class="av" style="background:#E5484D">J</span><span class="ib"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M3 1.5v9l7-4.5z"/></svg></span><span class="share">Share</span></div>
+              <div class="rp-tabs"><span class="on">Design</span><span>Prototype</span><span style="margin-left:auto">100%</span></div>
+              <div class="rp-sec"><h5>Frame <span>Desktop</span></h5><div class="grid2"><div class="fld"><i>X</i>0</div><div class="fld"><i>Y</i>0</div><div class="fld"><i>W</i>1440</div><div class="fld"><i>H</i>900</div></div></div>
+              <div class="rp-sec"><h5>Auto layout <span>+</span></h5><div class="grid2"><div class="fld"><i>↔</i>24</div><div class="fld"><i>▭</i>32</div></div></div>
+              <div class="rp-sec"><h5>Fill <span>+</span></h5><div class="fld"><span class="sw"></span>FFFFFF<span style="margin-left:auto;color:var(--f-tx2)">100%</span></div></div>
+              <div class="rp-sec"><h5>Stroke <span>+</span></h5></div>
+              <div class="rp-sec"><h5>Effects <span>+</span></h5></div>
+              <div class="rp-sec"><h5>Export <span>+</span></h5></div>
+            </aside>
+
+            <div class="etip" aria-hidden="true"><span class="eg"><i></i><svg viewBox="0 0 10 12"><path d="M1 .8v9.6l2.5-2.3 1.7 3.6 1.6-.7-1.7-3.5H8.6z" fill="#fff" stroke="#111" stroke-width=".7" stroke-linejoin="round"/></svg></span>Touch the edge</div><div class="edge l" id="edgeL"></div><div class="edge r" id="edgeR"></div>
+
+            <!-- ⌃⌥P palette -->
+            <div class="pal" id="pal" role="dialog" aria-label="Go to page">
+              <div class="pal-s"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#9A9A9A" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg><input id="palIn" placeholder="Go to page…" autocomplete="off" spellcheck="false" aria-label="Page name"><span class="caret" id="caret" hidden></span></div>
+              <div class="pal-l" id="palL"></div>
+              <div class="pal-f"><span>Sample App</span><span>↑↓ select &nbsp;↩ go &nbsp;esc close</span></div>
+            </div>
+            <div class="keys" id="keys"></div>
+
+            <!-- activity window -->
+            <div class="act" id="act" aria-hidden="true">
+              <div class="act-bar"><span class="lights"><i></i><i></i><i></i></span><span class="ttl">Activity</span></div>
+              <div class="act-in">
+                <div class="act-top"><div><small>This week in Figma</small><div class="tot" id="actTot">0 min</div><small>Figma in front and you were active</small></div><span class="ex">Example</span></div>
+                <div class="bars" id="bars"></div>
+                <div class="files" id="files"></div>
+                <p class="act-note">Stored only on this Mac and never sent anywhere.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ghost" id="ghost" aria-hidden="true"><span class="ring"></span><svg width="22" height="22" viewBox="0 0 22 22"><path d="M3 2v16.5l4.3-4.1 2.8 6.3 2.6-1.1-2.7-6.2h6z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="tagg">demo</span></div>
+    </div>
+    </div>
+    <div class="ctl" role="group" aria-label="Demo controls">
+      <div class="cap"><b id="capT">Edge reveal</b><span id="capD"></span></div>
+      <div class="btns">
+        <button id="prev" aria-label="Previous demo"><svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1 1.5 6 6 11"/></svg></button>
+        <button id="pp" class="pp" aria-label="Pause"><svg class="prog" viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" id="progC"/></svg><svg id="ppIco" width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="1.5" width="2.6" height="9" rx=".6"/><rect x="7.4" y="1.5" width="2.6" height="9" rx=".6"/></svg></button>
+        <button id="next" aria-label="Next demo"><svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 1l4.5 5L2 11"/></svg></button>
+      </div>
+      <div class="cap r"><div class="dashes" id="dashes"><i class="on"></i><i></i><i></i><i></i></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES: one section per core feature -->
+<section class="sec fsec" id="reveal">
+  <div class="wrap">
+    <div class="fhead">
+      <div>
+        <h2 class="h2">Touch to open,<br><span>move away to fold.</span></h2>
+      </div>
+    </div>
+    <div class="fbody">
+      <div>
+        <ul class="krows">
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="15" height="12" rx="2"/><path d="M7.5 4v12"/><path d="M4.5 7.5h1M4.5 10h1M4.5 12.5h1"/></svg></span><span class="kt"><b>Left edge: layers</b><small>Work with the panel folded. Push the pointer to the left edge of the screen and the layers panel slides out.</small></span></li>
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="15" height="12" rx="2"/><path d="M6 4v12" stroke-dasharray="1.5 2"/><path d="M10 10h5M13 8l2 2-2 2"/></svg></span><span class="kt"><b>It folds on its own</b><small>Move the pointer off the panel and it folds away, leaving the canvas wide.</small></span></li>
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="15" height="12" rx="2"/><path d="M12.5 4v12"/><path d="M14.5 7.5h1M14.5 10h1M14.5 12.5h1"/></svg></span><span class="kt"><b>Right edge: properties</b><small>Turn it on in Settings to bring out the properties panel from the right edge the same way.</small></span></li>
+        </ul>
+        <p class="fnote">Try it on the left edge of the Figma window in the demo above.</p>
+      </div>
+      <div class="fshot"><p class="mono nc">Motion</p>
+        <div class="rv" aria-hidden="true">
+          <div class="rv-bar"><span class="rv-lights"><i></i><i></i><i></i></span><span class="rv-tab">Sample App</span><span class="rv-tab dim">Design System</span></div>
+          <div class="rv-body">
+            <div class="rv-share"><i style="background:#E5484D"></i><i style="background:#12A594"></i><b>Share</b></div>
+            <div class="rv-frame"><span class="rv-flbl">Home / Dashboard</span>
+              <div class="rv-page">
+                <div class="rv-side"><i class="lg"></i><i class="on"></i><i></i><i></i><i></i></div>
+                <div class="rv-main">
+                  <b class="rv-h">Overview</b>
+                  <div class="rv-cards"><div class="sel"><s></s><b>Revenue</b></div><div><s></s><b>Sessions</b></div><div><s></s><b>Retention</b></div></div>
+                  <svg class="rv-chart" viewBox="0 0 200 60" preserveAspectRatio="none"><path d="M0 48C30 40 40 22 70 30S110 52 140 30 180 12 200 8V60H0Z" fill="rgba(13,153,255,.12)"/><path d="M0 48C30 40 40 22 70 30S110 52 140 30 180 12 200 8" fill="none" stroke="#3D63C9" stroke-width="2"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="rv-tools"><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="rv-chip"><svg viewBox="0 0 10 12"><path d="M1.5 1h4.5L8.5 3.5V11h-7z" fill="none" stroke="currentColor"/></svg>Home / Dashboard<span>‹</span><span>›</span></div>
+            <div class="rv-panel">
+              <div class="rv-ph"><b>Sample App</b><small>Drafts</small></div>
+              <div class="rv-tabs"><span class="on">File</span><span>Assets</span></div>
+              <div class="rv-sec">Pages</div>
+              <div class="rv-row " style="--ind:0"><i><svg viewBox="0 0 10 12"><path d="M1.5 1h4.5L8.5 3.5V11h-7z" fill="none" stroke="currentColor"/></svg></i>Welcome</div><div class="rv-row " style="--ind:0"><i><svg viewBox="0 0 10 12"><path d="M1.5 1h4.5L8.5 3.5V11h-7z" fill="none" stroke="currentColor"/></svg></i>Onboarding / Login</div><div class="rv-row cur" style="--ind:0"><i><svg viewBox="0 0 10 12"><path d="M1.5 1h4.5L8.5 3.5V11h-7z" fill="none" stroke="currentColor"/></svg></i>Home / Dashboard</div><div class="rv-row " style="--ind:0"><i><svg viewBox="0 0 10 12"><path d="M1.5 1h4.5L8.5 3.5V11h-7z" fill="none" stroke="currentColor"/></svg></i>Reports</div>
+              <div class="rv-sec">Layers</div>
+              <div class="rv-row " style="--ind:0"><i><svg viewBox="0 0 10 10"><path d="M3 1v8M7 1v8M1 3h8M1 7h8" fill="none" stroke="currentColor"/></svg></i>Home / Dashboard</div><div class="rv-row " style="--ind:1"><i><svg viewBox="0 0 10 10"><path d="M3 1v8M7 1v8M1 3h8M1 7h8" fill="none" stroke="currentColor"/></svg></i>Header</div><div class="rv-row comp" style="--ind:2"><i><svg viewBox="0 0 10 10"><path d="M5 1 9 5 5 9 1 5z" fill="none" stroke="currentColor"/></svg></i>Logo</div><div class="rv-row " style="--ind:1"><i><svg viewBox="0 0 10 10"><path d="M2 2h6M5 2v7" fill="none" stroke="currentColor"/></svg></i>Overview</div><div class="rv-row " style="--ind:1"><i><svg viewBox="0 0 10 10"><path d="M3 1v8M7 1v8M1 3h8M1 7h8" fill="none" stroke="currentColor"/></svg></i>Cards</div><div class="rv-row comp sel" style="--ind:2"><i><svg viewBox="0 0 10 10"><path d="M5 1 9 5 5 9 1 5z" fill="none" stroke="currentColor"/></svg></i>Card / Revenue</div><div class="rv-row comp" style="--ind:2"><i><svg viewBox="0 0 10 10"><path d="M5 1 9 5 5 9 1 5z" fill="none" stroke="currentColor"/></svg></i>Card / Sessions</div>
+              <div class="rv-hov"></div>
+            </div>
+            <div class="rv-edge"></div>
+            <svg class="rv-cur" viewBox="0 0 10 12" aria-hidden="true"><path d="M1 .8v9.6l2.5-2.3 1.7 3.6 1.6-.7-1.7-3.5H8.6z" fill="#fff" stroke="#111" stroke-width=".7" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec fsec" id="jump">
+  <div class="wrap">
+    <div class="fhead">
+      <div>
+        <h2 class="h2">Without opening the panel,<br><span>switch pages.</span></h2>
+      </div>
+    </div>
+    <div class="fbody">
+      <div>
+        <ul class="krows">
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h6.5L15 6v11.5H5z"/><circle cx="9.5" cy="11" r="2.3"/><path d="m11.2 12.7 1.8 1.8"/></svg></span><span class="kt"><b>Find by name</b><small><kbd>⌃⌥P</kbd> opens the page finder. Type a few letters and press <kbd>↩</kbd>.</small></span></li>
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="16" height="7" rx="2"/><path d="M5 9.5h4M12.5 9 11.5 10.5 12.5 12M15 9l1 1.5-1 1.5"/></svg></span><span class="kt"><b>Page button, bottom left</b><small>Always shows the current page. Use <kbd>‹</kbd> <kbd>›</kbd> or <kbd>⌃⌥←</kbd> <kbd>⌃⌥→</kbd>to go back and forward.</small></span></li>
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="9" height="10" rx="1.5"/><path d="M9 10h8.5M15 7.5l2.5 2.5-2.5 2.5"/></svg></span><span class="kt"><b>Straight from another app</b><small>Click ‘Figma Page’ in the menu bar to bring Figma forward and open the page you want.</small></span></li>
+        </ul>
+        <p class="fnote">Try the shortcuts on this page too. The Figma window in the demo follows along.</p>
+      </div>
+      <div class="fshot"><p class="mono nc">Real screen</p>
+        <div class="mini dark-shot" aria-hidden="true">
+        <img class="pal-img" src="../assets/palette-dark.png" alt="Layerhover page finder: a list for finding pages by name">
+        <img class="chip-img" src="../assets/chip-dark-0.png" alt="Page button at Figma’s bottom left: the current page name with back and forward arrows">
+      </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ICONS -->
+<section class="sec" id="icons">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <h2 class="h2">One small moving picture in the menu bar,<br><span>14 icons or the weather right now.</span></h2>
+      </div>
+    </div>
+    <div class="icons" id="iconGrid"></div>
+    <!-- Weather: 손그림 Icons과 성격이 달라(Now Location에 따라 바뀜) 따로 한 판으로 — 같은 크기로 크게, 옅은 하늘빛 유리로 구분 -->
+    <div class="wxs">
+      <p class="wxs-h"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 14.5s4.5-4.2 4.5-7.8a4.5 4.5 0 0 0-9 0c0 3.6 4.5 7.8 4.5 7.8Z"/><circle cx="8" cy="6.7" r="1.6"/></svg><b>Weather</b><span>Changes with where you are</span></p>
+      <div class="icons wxg" id="wx"></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec fsec act-sec" id="activity">
+  <div class="wrap">
+    <div class="fhead">
+      <div>
+        <h2 class="h2">How much you did today,<br><span>and when to rest.</span></h2>
+      </div>
+    </div>
+    <div class="fbody">
+      <div>
+        <ul class="krows">
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 1-7.3 9.2"/><path d="M10 6v4l2.5 1.5"/></svg></span><span class="kt"><b>Today fills up like a clock</b><small>The ring at the top of the menu bar panel fills with today’s time in Figma. Six hours is a full turn.</small></span></li>
+        <li><span class="fi warm"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17.5a5 5 0 0 0 5-5c0-3-2.5-4.5-3-8-1.5 1.5-2.2 3-2.2 4.5-1-.6-1.6-1.6-1.8-2.7C6.2 7.8 5 9.8 5 12.5a5 5 0 0 0 5 5Z"/></svg></span><span class="kt"><b>Turns orange after a long stretch</b><small>After 50 minutes without a break, the ring and text turn orange to show it’s time to rest.</small></span></li>
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16.5h14"/><rect x="4" y="10" width="2.2" height="5" rx=".6"/><rect x="8" y="6" width="2.2" height="9" rx=".6"/><rect x="12" y="8.5" width="2.2" height="6.5" rx=".6"/></svg></span><span class="kt"><b>Your week in one window</b><small>Look back at time by day and by file. The log is stored only on this Mac.</small></span></li>
+        </ul>
+        
+      </div>
+      <div class="fshot real"><p class="mono nc">Real screen · Activity window</p>
+        <div class="aw" aria-hidden="true">
+          <div class="aw-bar"><span class="aw-lights"><i></i><i></i><i></i></span><b>Activity</b></div>
+          <div class="aw-in">
+            <div class="aw-head"><div><b>This week in Figma</b><small>2026-11-16 ~ 2026-11-22</small></div>
+              <div class="aw-nav"><span>‹</span><span>This week</span><span>›</span></div></div>
+            <div class="aw-stats">
+              <div><small>Time in Figma</small><b>12 hr 40 min</b></div>
+              <div><small>Focus time</small><b>8 hr 5 min</b></div>
+              <div><small>Longest focus</small><b>1 hr 32 min</b></div>
+              <div><small>Page moves</small><b>214</b><em>Layerhover 168 · manual 46</em></div>
+            </div>
+            <p class="aw-h">By day</p>
+            <div class="aw-chart"><div class="aw-day"><div class="aw-col"><i class="f" style="--h:0.55"></i><i class="o" style="--h:0.25"></i></div><span>Mon 16</span></div><div class="aw-day"><div class="aw-col"><i class="f" style="--h:0.4"></i><i class="o" style="--h:0.3"></i></div><span>Tue 17</span></div><div class="aw-day"><div class="aw-col"><i class="f" style="--h:0.7"></i><i class="o" style="--h:0.25"></i></div><span>Wed 18</span></div><div class="aw-day"><div class="aw-col"><i class="f" style="--h:0.48"></i><i class="o" style="--h:0.32"></i></div><span>Thu 19</span></div><div class="aw-day"><div class="aw-col"><i class="f" style="--h:0.3"></i><i class="o" style="--h:0.22"></i></div><span>Fri 20</span></div><div class="aw-day"><div class="aw-col"><i class="f" style="--h:0.05"></i><i class="o" style="--h:0.04"></i></div><span>Sat 21</span></div><div class="aw-day"><div class="aw-col"><i class="f" style="--h:0"></i><i class="o" style="--h:0"></i></div><span>Sun 22</span></div></div>
+            <div class="aw-legend"><span class="f">Focus</span><span class="o">Other</span></div>
+            <div class="aw-rank">
+              <div><p class="aw-h">Files</p><ul><li><span class="n">Sample App</span><span class="t">6 hr 12 min</span><i style="--w:1"></i></li><li><span class="n">Design System</span><span class="t">3 hr 4 min</span><i style="--w:0.5"></i></li><li><span class="n">Marketing Site</span><span class="t">2 hr 10 min</span><i style="--w:0.35"></i></li><li><span class="n">Icon Library</span><span class="t">54 min</span><i style="--w:0.15"></i></li><li><span class="n">Playground</span><span class="t">20 min</span><i style="--w:0.06"></i></li></ul></div>
+              <div><p class="aw-h">Pages</p><ul><li><span class="n">ㄴ Home / Dashboard <em>Sample App</em></span><span class="t">2 hr 41 min</span><i style="--w:1"></i></li><li><span class="n">ㄴ Components / Button <em>Design System</em></span><span class="t">1 hr 22 min</span><i style="--w:0.51"></i></li><li><span class="n">ㄴ Onboarding / Login <em>Sample App</em></span><span class="t">58 min</span><i style="--w:0.36"></i></li><li><span class="n">ㄴ Landing / Hero <em>Marketing Site</em></span><span class="t">47 min</span><i style="--w:0.29"></i></li><li><span class="n">ㄴ Settings <em>Sample App</em></span><span class="t">31 min</span><i style="--w:0.19"></i></li></ul></div>
+            </div>
+            <div class="aw-foot"><span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx="3"/><path d="M6 10l4-4M7 6h3v3"/></svg>41</span><span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M5.5 3v10"/></svg>168</span><span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 1.5h5.5L12 4v10.5H4z"/><circle cx="7.5" cy="8.5" r="1.8"/><path d="m8.9 9.9 1.4 1.4"/></svg>23</span><span class="lock"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>This Mac only</span></div>
+            <div class="aw-btns"><span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 2v8M5 5l3-3 3 3M3 9v4.5h10V9"/></svg>Export CSV…</span><span class="del"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/></svg>Erase All…</span></div>
+          </div>
+        </div>
+        <div class="aw-strip" aria-hidden="true">
+          <svg class="am-ring" viewBox="0 0 50 50"><path class="trk" pathLength="100" d="M25 2H36A12 12 0 0 1 48 14V36A12 12 0 0 1 36 48H14A12 12 0 0 1 2 36V14A12 12 0 0 1 14 2Z"/><path class="day" pathLength="100" d="M25 2H36A12 12 0 0 1 48 14V36A12 12 0 0 1 36 48H14A12 12 0 0 1 2 36V14A12 12 0 0 1 14 2Z"/></svg>
+          <div><b>Layerhover</b><small>52 min in focus</small></div>
+          <span class="mono nc">Top of the menu bar panel</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRIVACY -->
+<section class="sec" id="privacy">
+  <div class="wrap">
+    <h2 class="h2">Asks only for what it needs,<br><span>keeps your log on this Mac.</span></h2>
+    <div class="perm">
+      <div><span class="when a">Always</span><h3>Accessibility</h3><p>Presses Figma’s own buttons for you. Never reads the screen.</p></div>
+      <div><span class="when">Only while weather is on</span><h3>Location</h3><p>Fetches only the weather, at about 1 km precision.</p></div>
+      <div><span class="when">Only if you turn it on</span><h3>Screen Recording</h3><p>Briefly covers the screen while switching pages. Nothing is saved.</p></div>
+    </div>
+    <p class="net"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c2 2 2 10.4 0 12.4M8 1.8c-2 2-2 10.4 0 12.4"/></svg>
+      <span>Only two things ever leave your Mac: <b>the update check</b>(GitHub, once a day) and <b>the weather request</b>(when weather is on). Your activity log and settings stay on this Mac.</span></p>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section class="sec fin" id="install">
+  <div class="wrap">
+    <div class="fin-card">
+      <!-- the 14 menu bar scenes drift by along the top: the app's own motif, as the closing image -->
+      <div class="fin-rail" aria-hidden="true"><div class="fin-track" id="finTrack"></div></div>
+      <h2 class="fin-h">One line is all it takes.</h2>
+      <p class="fin-sub">It’s free. It checks for a new version once a day and updates itself.</p>
+      <div class="hbar fin-bar">
+        <code id="brew"><span>$ </span>brew install --cask kjh13242/layerhover/layerhover</code>
+        <button class="hb copy2" id="copy" data-copy="brew install --cask kjh13242/layerhover/layerhover">Copy</button>
+        <a class="hb dl" href="https://github.com/kjh13242/layerhover/releases/latest/download/Layerhover.zip">Download zip <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 1.5v8M2.5 6 6 9.5 9.5 6"/></svg></a>
+      </div>
+      <div class="fin-notes">
+        <div><b>Requirements</b><p>macOS 13 or later and the Figma desktop app.</p></div>
+        <div><b>First launch</b><p>Turn on Layerhover in System Settings &gt; Privacy &amp; Security &gt; Accessibility.</p></div>
+        <div><b>If you see an “unidentified developer” warning</b><p>Click ‘Open Anyway’, or run <code>xattr -dr com.apple.quarantine /Applications/Layerhover.app</code></p></div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="peekrow"><span class="mk" data-m="peek" style="--s:24px"></span><span>Layerhover is not an official Figma product and is not affiliated with Figma.</span></div>
+    <div class="r"><a href="https://github.com/kjh13242/layerhover">GitHub</a><a href="https://github.com/kjh13242/layerhover/releases">Releases</a></div>
+  </div>
+</footer>
+
+<script>
+(()=>{
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const TOUCH = matchMedia('(hover: none)').matches;
+const $ = (s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+
+/* ---------- marks ---------- */
+const MARKS=[['buddha',48,'Pensive Bodhisattva','Bodhisattva'],['wave',64,'Waves','Waves'],['surf',48,'Surfing','Surfing'],['fishing',64,'Fishing','Fishing'],['tree',48,'Christmas tree','Xmas tree'],['magnolia',56,'Magnolia','Magnolia'],['lotus',56,'Lotus','Lotus'],['pagoda',64,'Pagoda','Stone pagoda'],['incense',64,'Incense','Incense'],['crane',64,'Crane','Crane'],['cat',48,'Cat and butterfly','Cat'],['leaf',56,'Leaf','Leaf'],['furin',56,'Wind chime','Wind chime'],['peek',48,'Peeking panel','Side peek']];
+const WX=[['wx-clear','Clear'],['wx-partly','Partly cloudy'],['wx-cloudy','Cloudy'],['wx-rain','Rain'],['wx-snow','Snow'],['wx-storm','Storm'],['wx-fog','Fog'],['wx-night','Night']];
+const FR=Object.fromEntries(MARKS.map(m=>[m[0],m[1]])); WX.forEach(w=>FR[w[0]]=48);
+const VEC=new Set(['buddha','wave','surf','fishing','tree','magnolia','lotus','pagoda','incense','crane','cat','leaf','furin','peek','wx-clear','wx-partly','wx-cloudy','wx-rain','wx-snow','wx-storm','wx-fog','wx-night']);
+const LAZY='IntersectionObserver' in window?new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;const el=e.target;
+  el.dataset.seen='1';if(el.dataset.img)el.style.setProperty('--img',el.dataset.img);LAZY.unobserve(el)}),{rootMargin:'600px 0px'}):null;
+// 안전장치: 첫 화면이 다 뜬 뒤 몇 초 지나면 아직 안 받은 띠도 받는다 (보이는지 알려 주지 않는 환경에서도 Icons이 Rain지 않게)
+addEventListener('load',()=>setTimeout(()=>document.querySelectorAll('.mk.v:not([data-seen])').forEach(el=>{el.dataset.seen='1';if(el.dataset.img)el.style.setProperty('--img',el.dataset.img);LAZY&&LAZY.unobserve(el)}),4000));
+function paint(el,id){el.dataset.m=id;el.style.setProperty('--n',FR[id]||48);
+  if(VEC.has(id)){el.classList.add('v');el.style.backgroundImage='';const u=`url(../assets/marks-svg/${id}.svg)`;
+    // 벡터 띠는 무거워서 화면 가까이 왔을 때만 받는다 (이미 받은 칸은 바로 바꾼다)
+    if(el.dataset.seen||!LAZY){el.style.setProperty('--img',u)}else{el.dataset.img=u;LAZY.observe(el)}}
+  else{el.classList.remove('v');el.style.backgroundImage=`url(../assets/marks/${id}@2x.png)`}
+  el.style.animationName='none';void el.offsetWidth;el.style.animationName='';}
+function mark(id,extra=''){const s=document.createElement('span');s.className='mk '+extra;paint(s,id);return s}
+$$('.mk[data-m]').forEach(el=>paint(el,el.dataset.m));
+
+// icon grid
+const grid=$('#iconGrid');
+MARKS.forEach((m,i)=>{const t=document.createElement('div');t.className='ic-t';
+    const k=mark(m[0],'ink');k.style.animationDelay=(-i*0.37)+'s';t.append(k);
+  const n=document.createElement('span');n.className='nm';n.textContent=m[2];t.append(n);grid.append(t)});
+const finTrack=$('#finTrack');
+if(finTrack){for(let r=0;r<2;r++)MARKS.forEach((m,i)=>{const k=mark(m[0],'ink');k.style.animationDelay=(-i*0.29)+'s';finTrack.append(k)})}
+const wx=$('#wx');
+WX.forEach((w,i)=>{const t=document.createElement('div');t.className='ic-t';const k=mark(w[0],'ink');k.style.animationDelay=(-i*0.41)+'s';t.append(k);
+  const n=document.createElement('span');n.className='nm';n.textContent=w[1];t.append(n);wx.append(t)});
+
+/* ---------- nav ---------- */
+const nav=$('#nav');addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>10),{passive:true});
+
+/* ---------- copy ---------- */
+$('#copy').onclick=async e=>{const b=e.currentTarget;const txt='brew install --cask kjh13242/layerhover/layerhover';
+  try{await navigator.clipboard.writeText(txt)}catch(_){const r=document.createRange();r.selectNodeContents($('#brew'));getSelection().removeAllRanges();getSelection().addRange(r);document.execCommand('copy')}
+  b.textContent='Copied';b.classList.add('ok');setTimeout(()=>{b.textContent='Copy';b.classList.remove('ok')},1600)};
+
+/* ---------- clock ---------- */
+const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function tick(){const d=new Date();let h=d.getHours(),ap=h<12?'AM':'PM';h=h%12||12;$('#clock').textContent=`${days[d.getDay()]} ${h}:${String(d.getMinutes()).padStart(2,'0')} ${ap}`}
+tick();setInterval(tick,15000);
+
+/* ---------- figma pages & frames ---------- */
+const PAGES=[
+ {name:'👋 Welcome',ind:0,tpl:'welcome'},{name:'📱 App',ind:0,tpl:'cover'},
+ {name:'Onboarding / Login',ind:1,tpl:'login'},{name:'Home / Dashboard',ind:1,tpl:'dash'},
+ {name:'Reports',ind:1,tpl:'table'},{name:'🧪 Experiments',ind:0,tpl:'stk'},{name:'Settings / Notifications',ind:1,tpl:'set'}];
+const rep=(n,f)=>Array.from({length:n},(_,i)=>f(i)).join('');
+const TPL={
+ dash:{html:`<div class="d"><div class="d-side" data-el="side"><span class="lg"></span><b class="on"></b><b></b><b></b><b></b><b></b></div><div class="d-main"><div class="d-head" data-el="head"><span class="t" data-el="title">Dashboard</span><span class="pl" data-el="btn"></span></div><div class="d-stats" data-el="stats">${rep(3,i=>`<div class="card" data-el="c${i}"><s></s><em></em><u></u></div>`)}</div><div class="d-chart" data-el="chart">${[40,62,48,80,56,70,92,66,74,58,86,100].map((h,i)=>`<i style="height:${h}%" class="${i==11?'on':''}"></i>`).join('')}</div></div></div>`,
+   layers:[[0,'fr','Home / Dashboard','root',1],[1,'auto','Sidebar','side'],[1,'auto','Content','',1],[2,'auto','Header','head',1],[3,'txt','Dashboard','title'],[3,'inst','Button / Primary','btn'],[2,'auto','Stats','stats',1],[3,'inst','Card / Revenue','c0'],[3,'inst','Card / Users','c1'],[3,'inst','Card / Sessions','c2'],[2,'fr','Chart','chart'],[1,'rect','Background','']],sel:'chart'},
+ login:{html:`<div class="d d-c"><div class="lg-card" data-el="card"><span class="lg"></span><span class="t" data-el="title">Welcome back</span><div class="inp" data-el="i1"></div><div class="inp" data-el="i2"></div><div class="bt" data-el="btn"></div></div></div>`,
+   layers:[[0,'fr','Onboarding / Login','root',1],[1,'auto','Card','card',1],[2,'inst','Logo','',0],[2,'txt','Welcome back','title'],[2,'inst','Input / Email','i1'],[2,'inst','Input / Password','i2'],[2,'inst','Button / Primary','btn'],[1,'rect','Background','']],sel:'card'},
+ table:{html:`<div class="d d-table"><span class="t" data-el="title">Reports</span><div data-el="tbl">${rep(7,i=>`<div class="tr"><b class="k"></b><b></b><b></b><span class="pz" style="${i%3==1?'background:#FCE7E7':''}"></span></div>`)}</div></div>`,
+   layers:[[0,'fr','Reports','root',1],[1,'txt','Reports','title'],[1,'auto','Table','tbl',1],[2,'inst','Row / Header',''],[2,'inst','Row','' ],[2,'inst','Row',''],[2,'inst','Row',''],[2,'inst','Row','']],sel:'tbl'},
+ set:{html:`<div class="d d-set"><span class="t" data-el="title">Notifications</span><div data-el="list">${rep(6,i=>`<div class="srow"><b style="width:${30+i*7%25}%"></b><span class="tg ${[1,1,0,1,0,0][i]?'on':''}"></span></div>`)}</div></div>`,
+   layers:[[0,'fr','Settings / Notifications','root',1],[1,'txt','Notifications','title'],[1,'auto','List','list',1],[2,'inst','Setting row / Email',''],[2,'inst','Setting row / Push',''],[2,'inst','Setting row / Digest',''],[2,'inst','Setting row / Mentions','']],sel:'list'},
+ welcome:{html:`<div class="d d-welcome"><span class="big" data-el="title">Welcome 👋</span><div data-el="body" style="display:grid;gap:7px;width:60%"><div class="ln"></div><div class="ln" style="width:80%"></div></div><div class="rw" data-el="cards"><div></div><div></div><div></div></div></div>`,
+   layers:[[0,'fr','Welcome','root',1],[1,'txt','Welcome 👋','title'],[1,'txt','Intro','body'],[1,'auto','Links','cards',1],[2,'inst','Link card',''],[2,'inst','Link card',''],[2,'inst','Link card','']],sel:'title'},
+ cover:{html:`<div class="d d-cover"><span class="orb" data-el="orb"></span><span class="big" data-el="title">Sample App</span><span class="sm" data-el="sub">Product design · v2</span></div>`,
+   layers:[[0,'fr','Cover','root',1],[1,'txt','Sample App','title'],[1,'txt','Product design · v2','sub'],[1,'rect','Orb','orb']],sel:'title'},
+ stk:{html:`<div class="d d-stk" data-el="board">${['#FFE58A','#FFC8D9','#BDE7FF','#C9F2C7','#FFE58A','#FFD3A8','#BDE7FF','#FFC8D9'].map(c=>`<div class="stk" style="background:${c}"><b></b><b></b></div>`).join('')}</div>`,
+   layers:[[0,'fr','Ideas','root',1],[1,'group','Board','board',1],[2,'rect','Sticky',''],[2,'rect','Sticky',''],[2,'rect','Sticky',''],[2,'rect','Sticky','']],sel:'board'}
+};
+const IC={
+ fr:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M4 1v10M8 1v10M1 4h10M1 8h10"/></svg>',
+ auto:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="2" y="1.8" width="8" height="3.2" rx=".6"/><rect x="2" y="7" width="8" height="3.2" rx=".6"/></svg>',
+ txt:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2.5 2.5h7M6 2.5v7.5"/></svg>',
+ inst:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M6 1.4 10.6 6 6 10.6 1.4 6z"/></svg>',
+ rect:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="2" y="2" width="8" height="8" rx=".5"/></svg>',
+ group:'<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="2 1.4"><rect x="1.5" y="1.5" width="9" height="9"/></svg>',
+ doc:'<svg width="11" height="13" viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 1.5h6l3 3v8h-9z"/><path d="M7.5 1.5v3h3"/></svg>',
+ chk:'<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m2 6.5 2.6 2.5L10 3"/></svg>',
+ car:'<svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><path d="M2 1.5 6 4 2 6.5z" transform="rotate(90 4 4)"/></svg>',
+ eye:'<svg width="13" height="10" viewBox="0 0 14 10" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1 5s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4z"/><circle cx="7" cy="5" r="1.6"/></svg>'
+};
+let cur=3;
+const frame=$('#frame'),frameW=$('#fwrapF'),lys=$('#lys'),pgs=$('#pgs');
+let selBox=null;
+function renderPage(i,anim=true){
+  cur=i;const p=PAGES[i],t=TPL[p.tpl];
+  const doit=()=>{
+    frame.innerHTML=t.html;$('#frameLbl').textContent=p.name.replace(/^\W+\s/,'');
+    lys.innerHTML=t.layers.map(([d,ty,nm,el,open])=>`<div class="row${el===t.sel?' sel-row':''}" data-hov data-el-ref="${el}" style="padding-left:${8+d*14}px"><span class="car">${open?IC.car:''}</span><span class="ic ${ty==='inst'?'comp':ty==='fr'?'fr':''}">${IC[ty]}</span><span>${nm}</span><span class="vis">${IC.eye}</span></div>`).join('');
+    placeSel(t.sel);
+  };
+  pgs.innerHTML=PAGES.map((q,j)=>`<div class="row${j===i?' cur':''}" data-hov data-page="${j}" style="padding-left:${8+q.ind*14}px"><span class="ic">${j===i?IC.chk:''}</span><span>${q.name}</span></div>`).join('');
+  const nm=$('#chipNm');nm.textContent=p.name;nm.classList.remove('bump');void nm.offsetWidth;nm.classList.add('bump');
+  $('#cPrev').disabled=i===0;$('#cNext').disabled=i===PAGES.length-1;
+  if(anim&&!RM){frameW.classList.add('swap');setTimeout(()=>{doit();frameW.classList.remove('swap')},180)}else doit();
+}
+function placeSel(el){
+  selBox&&selBox.remove();selBox=null;
+  const t=frame.querySelector(`[data-el="${el}"]`);if(!t)return;
+  requestAnimationFrame(()=>{const fr=frame.getBoundingClientRect(),r=t.getBoundingClientRect();
+    if(!fr.width)return;
+    selBox=document.createElement('div');selBox.className='selbox';
+    const k=1440/fr.width;
+    selBox.innerHTML=`<i></i><i></i><i></i><i></i><span>${Math.round(r.width*k)} × ${Math.round(r.height*k)}</span>`;
+    Object.assign(selBox.style,{left:(r.left-fr.left)+'px',top:(r.top-fr.top)+'px',width:r.width+'px',height:r.height+'px'});
+    frame.append(selBox)});
+}
+addEventListener('resize',()=>placeSel(TPL[PAGES[cur].tpl].sel));
+pgs.addEventListener('click',e=>{const r=e.target.closest('[data-page]');if(r)renderPage(+r.dataset.page)});
+$('#cPrev').onclick=()=>{if(cur>0)renderPage(cur-1)};
+$('#cNext').onclick=()=>{if(cur<PAGES.length-1)renderPage(cur+1)};
+renderPage(3,false);
+
+/* ---------- hover sync: layers <-> canvas ---------- */
+function setHover(row,on){
+  row.classList.toggle('ghov',on);
+  const ref=row.dataset.elRef;if(ref){const t=frame.querySelector(`[data-el="${ref}"]`)||(ref==='root'?frame:null);t&&t.classList.toggle('hl',on)}
+}
+lys.addEventListener('pointerover',e=>{const r=e.target.closest('.row');r&&setHover(r,true)});
+lys.addEventListener('pointerout',e=>{const r=e.target.closest('.row');r&&setHover(r,false)});
+let ghostHoverEl=null;
+function ghostHover(cx,cy){ // client coords
+  let hit=null;
+  for(const el of $$('[data-hov],.chip button,.dd-g button,.dd-b button,.dd-wx button,.rest,.bar,.lh')){
+    const r=el.getBoundingClientRect();if(r.width&&cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom){hit=el}
+  }
+  if(hit===ghostHoverEl)return;
+  if(ghostHoverEl){ghostHoverEl.matches('.lys .row')?setHover(ghostHoverEl,false):ghostHoverEl.classList.remove('ghov')}
+  ghostHoverEl=hit;
+  if(hit){hit.matches('.lys .row')?setHover(hit,true):hit.classList.add('ghov')}
+}
+
+/* ---------- edge reveal ---------- */
+const fig=$('#fig'),fbody=$('#fbody'),desk=$('#desk'),edgeL=$('#edgeL'),edgeR=$('#edgeR'),lp=$('#lp'),rp=$('#rp');
+let rightOn=true,closeT={l:0,r:0};
+function setOpen(side,on){
+  const c=side==='l'?'l-open':'r-open';
+  if(on){clearTimeout(closeT[side]);closeT[side]=0;fig.classList.add(c)}
+  else if(fig.classList.contains(c)&&!closeT[side]){closeT[side]=setTimeout(()=>{fig.classList.remove(c);closeT[side]=0},260)}
+}
+function edgeAt(bx,by){ // body-relative coords
+  const W=fbody.clientWidth,H=fbody.clientHeight,inY=by>=-4&&by<=H+4;
+  const lw=lp.offsetWidth,rw=rp.offsetWidth;
+  edgeL.classList.toggle('near',inY&&bx<70&&bx>-60);
+  edgeL.classList.toggle('hit',inY&&bx<=8&&bx>-60);
+  if(inY&&bx<=8&&bx>-60)setOpen('l',true);
+  else if(fig.classList.contains('l-open')){ if(!inY||bx>lw+26)setOpen('l',false); else clearTimeout(closeT.l),closeT.l=0 }
+  if(rightOn){
+    edgeR.classList.toggle('near',inY&&bx>W-70&&bx<W+60);
+    edgeR.classList.toggle('hit',inY&&bx>=W-8&&bx<W+60);
+    if(inY&&bx>=W-8&&bx<W+60)setOpen('r',true);
+    else if(fig.classList.contains('r-open')){ if(!inY||bx<W-rw-26)setOpen('r',false); else clearTimeout(closeT.r),closeT.r=0 }
+  }else{edgeR.classList.remove('near','hit')}
+}
+function clearEdges(){edgeL.classList.remove('near','hit');edgeR.classList.remove('near','hit');setOpen('l',false);setOpen('r',false)}
+
+/* ---------- palette ---------- */
+const pal=$('#pal'),palIn=$('#palIn'),palL=$('#palL');let palSel=0,palItems=[],recent=3;
+function hiName(n,q){if(!q)return n;const i=n.toLowerCase().indexOf(q.toLowerCase());if(i<0)return n;return n.slice(0,i)+'<mark>'+n.slice(i,i+q.length)+'</mark>'+n.slice(i+q.length)}
+function renderPal(){
+  const q=palIn.value.trim();
+  palItems=PAGES.map((p,i)=>i).filter(i=>!q||PAGES[i].name.toLowerCase().includes(q.toLowerCase()));
+  palSel=Math.min(palSel,Math.max(0,palItems.length-1));
+  let h='';
+  if(!q){h+=`<div class="pal-g">Recent</div><div class="pal-r ind" data-i="${recent}">${IC.doc}${PAGES[recent].name}</div><div class="pal-g">All pages</div>`}
+  h+=palItems.map((i,k)=>`<div class="pal-r ${PAGES[i].ind?'ind':''} ${k===palSel?'on':''}" data-i="${i}">${i===cur?IC.chk:IC.doc}<span>${hiName(PAGES[i].name,q)}</span></div>`).join('');
+  if(!palItems.length)h+=`<div class="pal-g" style="padding:14px 10px">No matching pages</div>`;
+  palL.innerHTML=h;
+}
+function openPal(focus){pal.classList.add('open');palIn.value='';palSel=0;renderPal();if(focus)palIn.focus({preventScroll:true})}
+function closePal(){pal.classList.remove('open');palIn.blur();$('#caret').hidden=true}
+function goPal(){const i=palItems[palSel];if(i!=null){recent=cur;renderPage(i)}closePal()}
+palIn.addEventListener('input',()=>{palSel=0;renderPal()});
+palIn.addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'){palSel=Math.min(palSel+1,palItems.length-1);renderPal();e.preventDefault()}
+  else if(e.key==='ArrowUp'){palSel=Math.max(palSel-1,0);renderPal();e.preventDefault()}
+  else if(e.key==='Enter'){goPal();e.preventDefault()}
+  else if(e.key==='Escape'){closePal()}
+});
+palL.addEventListener('click',e=>{const r=e.target.closest('[data-i]');if(!r)return;recent=cur;renderPage(+r.dataset.i);closePal()});
+const keys=$('#keys');let keysT;
+function showKeys(arr){keys.innerHTML=arr.map(k=>`<kbd>${k}</kbd>`).join('');keys.classList.add('show');clearTimeout(keysT);keysT=setTimeout(()=>keys.classList.remove('show'),1100)}
+
+/* real keyboard shortcuts while demo is on screen */
+let deskVisible=false;
+new IntersectionObserver(es=>{deskVisible=es[0].isIntersecting;if(deskVisible)startGhost();else stopGhost()},{threshold:.25}).observe(desk);
+addEventListener('keydown',e=>{
+  if(!deskVisible||!e.ctrlKey||!e.altKey)return;
+  if(e.code==='KeyP'){e.preventDefault();userTook();if(mode!=='pages')setMode('pages',true);showKeys(['⌃','⌥','P']);openPal(true)}
+  else if(e.code==='ArrowLeft'){e.preventDefault();userTook();showKeys(['⌃','⌥','←']);if(cur>0)renderPage(cur-1)}
+  else if(e.code==='ArrowRight'){e.preventDefault();userTook();showKeys(['⌃','⌥','→']);if(cur<PAGES.length-1)renderPage(cur+1)}
+});
+document.addEventListener('pointerdown',e=>{if(pal.classList.contains('open')&&!pal.contains(e.target))closePal()});
+
+/* ---------- menubar dropdown ---------- */
+const dd=$('#dd'),lh=$('#lh'),ddGrid=$('#ddGrid'),wxA=$('#wxA'),wxB=$('#wxB');let curMark='buddha',wxMode='off',resting=false;
+MARKS.forEach(m=>{const b=document.createElement('button');b.className='gl';b.dataset.mark=m[0];b.setAttribute('aria-label',m[2]);b.append(mark(m[0],''));if(m[0]===curMark)b.classList.add('on');ddGrid.append(b)});
+function syncGrid(){$$('button',ddGrid).forEach(b=>b.classList.toggle('on',wxMode==='off'&&b.dataset.mark===curMark));
+  wxA.classList.toggle('on',wxMode==='icon');wxB.classList.toggle('on',wxMode==='temp');dd.classList.toggle('wxon',wxMode!=='off')}
+function setMark(id){curMark=id;wxMode='off';lh.classList.remove('wx');syncGrid();paint($('#lhMark'),id);paint($('#ddMark'),id)}
+function setWx(w){wxMode=w;syncGrid();lh.classList.toggle('wx',w==='temp');const m=w==='off'?curMark:'wx-clear';paint($('#lhMark'),m);paint($('#ddMark'),m)}
+function setRest(on){resting=on;dd.classList.toggle('resting',on);$('#restT').textContent=on?'Back':'Rest';$('#restBtn').setAttribute('aria-label',on?'Back':'Rest');
+  $('#ddLine').textContent=on?'Resting':'2 hr 40 min today';$('#lhMark').classList.toggle('still',on)}
+function openDD(on){if(on&&desk.clientWidth>640){const dr=desk.getBoundingClientRect(),lr=lh.getBoundingClientRect();dd.style.right=Math.max(8,dr.right-lr.right-14)+'px'}dd.classList.toggle('open',on);lh.classList.toggle('on',on);dd.setAttribute('aria-hidden',!on)}
+lh.onclick=e=>{e.stopPropagation();userTook();openDD(!dd.classList.contains('open'))};
+ddGrid.onclick=e=>{const b=e.target.closest('button');if(b)setMark(b.dataset.mark)};
+wxA.onclick=()=>setWx('icon');wxB.onclick=()=>setWx('temp');
+$('#restBtn').onclick=()=>setRest(!resting);
+dd.querySelector('[data-act=pal]').onclick=()=>{openDD(false);setMode('pages',true);openPal(true)};
+dd.querySelector('[data-act=log]').onclick=()=>{openDD(false);setMode('log',true)};
+desk.addEventListener('click',e=>{if(dd.classList.contains('open')&&!dd.contains(e.target)&&!lh.contains(e.target))openDD(false)});
+
+/* ---------- activity log ---------- */
+const act=$('#act');
+const DAYS=[['Mon',95],['Tue',130],['Wed',60],['Thu',0],['Fri',0],['Sat',0],['Sun',0]];
+const todayIdx=3; // demo "today" = 목
+const FILES=[['Sample App',200],['Design System',100],['Other',45]];
+let liveSec=0,liveT;
+function fmt(m){m=Math.round(m);const h=Math.floor(m/60),r=m%60;return h?(r?`${h} hr ${r} min`:`${h} hr`):(m?`${r} min`:'< 1 min')}
+function buildAct(){
+  $('#bars').innerHTML=DAYS.map((d,i)=>`<div class="bar${i===todayIdx?' today':''}" data-i="${i}"><span class="tip"></span><i></i><span>${d[0]}</span></div>`).join('');
+  $('#files').innerHTML=FILES.map((f,i)=>`<div class="file${i===0?' live':''}"><span class="nm">${f[0]}</span><span class="t" data-f="${i}"></span><span class="m"><i></i></span></div>`).join('');
+}
+buildAct();
+function showAct(on){
+  act.classList.toggle('open',on);act.setAttribute('aria-hidden',!on);clearInterval(liveT);
+  const bars=$$('.bar',act),fills=$$('.file .m i',act);
+  if(!on){bars.forEach(b=>b.querySelector('i').style.height='0');fills.forEach(f=>f.style.width='0');return}
+  liveSec=0;
+  const upd=()=>{const extra=liveSec/60;const vals=DAYS.map((d,i)=>i===todayIdx?50+extra:d[1]);const mx=150;
+    bars.forEach((b,i)=>{const h=Math.max(vals[i]?8:3,vals[i]/mx*86);b.style.setProperty('--h',h+'%');b.querySelector('i').style.height=h+'%';b.querySelector('.tip').textContent=vals[i]?`${DAYS[i][0]} · ${fmt(vals[i])}`:`${DAYS[i][0]} · no activity`});
+    const fv=FILES.map((f,i)=>i===0?f[1]+extra:f[1]);
+    fills.forEach((f,i)=>f.style.width=(fv[i]/260*100)+'%');
+    $$('.file .t',act).forEach((t,i)=>t.textContent=fmt(fv[i]));
+    $('#actTot').textContent=fmt(vals.reduce((a,b)=>a+b,0));};
+  setTimeout(upd,60);
+  liveT=setInterval(()=>{liveSec+=6;upd()},1000);
+}
+
+document.querySelectorAll('.copy2').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(b.dataset.copy)}catch(e){}
+  b.classList.add('ok');b.textContent='Copied';setTimeout(()=>{b.classList.remove('ok');b.textContent='Copy'},1600)});
+/* ---------- modes ---------- */
+const MODES=['edge','pages','menu','log'];
+const CAP={
+ edge:['Edge reveal',TOUCH?'Tap the window’s left edge. The right edge works too.':'Push the pointer to the left edge. The right edge works too.',18000],
+ pages:['Figma Page','Find with ⌃⌥P, flip with ⌃⌥← →.',17000],
+ menu:['Menu bar','Pick an icon or switch to the weather.',15000],
+ log:['Activity','This week’s time, file by file. Stored only on this Mac.',10000]};
+let elapsed=0,lastT=performance.now(),paused=RM;
+let mode='edge';
+function setMode(m,fromUser){
+  mode=m;fig.classList.toggle('m-edge',m==='edge');$$('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.mode===m));
+  $('#capT').textContent=CAP[m][0];$('#capD').textContent=CAP[m][1];elapsed=0;
+  $$('#dashes i').forEach((d,k)=>d.classList.toggle('on',MODES[k]===m));
+  closePal();openDD(false);showAct(m==='log');clearEdges();
+  if(fromUser)userTook(true);else startGhost();
+}
+const go=k=>setMode(MODES[(MODES.indexOf(mode)+k+MODES.length)%MODES.length]);
+$('#prev').onclick=()=>go(-1);$('#next').onclick=()=>go(1);
+$$('#dashes i').forEach((d,k)=>d.onclick=()=>setMode(MODES[k]));
+const PAUSE_ICO='<rect x="2" y="1.5" width="2.6" height="9" rx=".6"/><rect x="7.4" y="1.5" width="2.6" height="9" rx=".6"/>',PLAY_ICO='<path d="M3 1.5v9l7.5-4.5z"/>';
+function setPaused(v){paused=v;$('#pp').setAttribute('aria-label',v?'Play':'Pause');$('#ppIco').innerHTML=v?PLAY_ICO:PAUSE_ICO}
+$('#pp').onclick=()=>setPaused(!paused);setPaused(paused);
+// the timer runs only while the auto demo is playing (not while the visitor drives it)
+requestAnimationFrame(function tick(now){const dt=now-lastT;lastT=now;
+  if(!paused&&deskVisible&&ghost.classList.contains('on'))elapsed+=dt;
+  const d=CAP[mode][2],k=Math.min(1,elapsed/d);$('#progC').style.strokeDashoffset=119.4*(1-k);
+  if(k>=1)go(1);requestAnimationFrame(tick)});
+
+/* ---------- ghost cursor ---------- */
+const ghost=$('#ghost');let gx=0,gy=0,runId=0,realAt=0,resumeT;
+const CANCEL=Symbol();
+function gset(x,y){gx=x;gy=y;ghost.style.transform=`translate(${x}px,${y}px)`;
+  const d=desk.getBoundingClientRect(),b=fbody.getBoundingClientRect();
+  edgeAt(x+d.left-b.left,y+d.top-b.top);ghostHover(x+d.left,y+d.top)}
+function ok(id){if(id!==runId)throw CANCEL}
+const sleep=(ms,id)=>new Promise(r=>setTimeout(r,ms)).then(()=>ok(id));
+const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+function move(x,y,ms,id){const x0=gx,y0=gy,t0=performance.now();
+  return new Promise((res,rej)=>{const f=now=>{if(id!==runId)return rej(CANCEL);const t=Math.min(1,(now-t0)/ms),e=ease(t);
+    // slight arc
+    gset(x0+(x-x0)*e,y0+(y-y0)*e-Math.sin(Math.PI*e)*Math.min(30,Math.abs(x-x0)*.06));t<1?requestAnimationFrame(f):res()};requestAnimationFrame(f)})}
+function pt(el,fx=.5,fy=.5){const d=desk.getBoundingClientRect(),r=el.getBoundingClientRect();return[r.left-d.left+r.width*fx,r.top-d.top+r.height*fy]}
+async function click(id){ghost.classList.remove('click');void ghost.offsetWidth;ghost.classList.add('click');await sleep(160,id)}
+function bodyPt(fx,fy){const d=desk.getBoundingClientRect(),b=fbody.getBoundingClientRect();return[b.left-d.left+b.width*fx,b.top-d.top+b.height*fy]}
+async function typeIn(str,id){$('#caret').hidden=false;const cv=document.createElement("canvas").getContext("2d");cv.font="500 15px Inter";for(const ch of str){palIn.value+=ch;palSel=0;renderPal();$("#caret").style.left=(palIn.offsetLeft+cv.measureText(palIn.value).width+1)+"px";await sleep(170+Math.random()*90,id)}}
+
+const SCRIPTS={
+ async edge(id){
+  for(;;){
+   let [x,y]=bodyPt(.6,.58);await move(x,y,600,id);await sleep(300,id);
+   [x,y]=bodyPt(.34,.42);await move(x,y,800,id);await sleep(250,id);
+   const b=bodyPt(0,.36);await move(b[0]+2,b[1],750,id);await sleep(500,id);
+   const bb=fbody.getBoundingClientRect();
+   const rows=$$('.lys .row').filter(r=>r.getBoundingClientRect().bottom<bb.bottom-8);
+   for(const k of [1,3,5,rows.length-1]){if(!rows[k])continue;const p=pt(rows[k],.45,.5);await move(p[0],p[1],420,id);await sleep(520,id)}
+   const p=pt($$('.pgs .row')[4],.4,.5);await move(p[0],p[1],500,id);await sleep(500,id);
+   [x,y]=bodyPt(.6,.5);await move(x,y,950,id);await sleep(1400,id);
+   if(rightOn){[x,y]=bodyPt(1,.45);await move(x-3,y,1000,id);await sleep(1300,id);[x,y]=bodyPt(.5,.6);await move(x,y,900,id);await sleep(1200,id)}
+  }},
+ async pages(id){
+  for(;;){
+   let [x,y]=bodyPt(.55,.62);await move(x,y,700,id);await sleep(700,id);
+   showKeys(['⌃','⌥','P']);await sleep(350,id);openPal(false);await sleep(600,id);
+   const q=cur===6?'home':'set';await typeIn(q,id);await sleep(650,id);
+   showKeys(['↩']);await sleep(250,id);goPal();await sleep(1700,id);
+   showKeys(['⌃','⌥','←']);if(cur>0)renderPage(cur-1);await sleep(1500,id);
+   showKeys(['⌃','⌥','→']);if(cur<PAGES.length-1)renderPage(cur+1);await sleep(1300,id);
+   const prev=$('#cPrev');let p=pt(prev);await move(p[0],p[1],900,id);await sleep(300,id);
+   for(let k=0;k<2;k++){await click(id);if(cur>0)renderPage(cur-1);await sleep(1000,id)}
+   [x,y]=bodyPt(.6,.5);await move(x,y,800,id);await sleep(900,id);
+  }},
+ async menu(id){
+  for(;;){
+   let p=pt(lh);await move(p[0],p[1],900,id);await sleep(200,id);await click(id);openDD(true);await sleep(700,id);
+   const seq=['crane','wave','lotus','cat','buddha'];
+   for(const m of seq){const b=ddGrid.querySelector(`[data-mark="${m}"]`);p=pt(b);await move(p[0],p[1],520,id);await sleep(160,id);await click(id);setMark(m);await sleep(1100,id)}
+   p=pt(wxB);await move(p[0],p[1],600,id);await click(id);setWx('temp');await sleep(1800,id);
+   p=pt(wxA);await move(p[0],p[1],500,id);await click(id);setWx('icon');await sleep(1400,id);
+   {const b=ddGrid.querySelector('[data-mark="buddha"]');p=pt(b);await move(p[0],p[1],600,id);await click(id);setMark('buddha');await sleep(800,id)}
+   const[x,y]=bodyPt(.45,.75);await move(x,y,800,id);await click(id);openDD(false);await sleep(1600,id);
+  }},
+ async log(id){
+  for(;;){
+   await sleep(700,id);
+   for(const b of $$('.bar',act).slice(0,4)){const p=pt(b,.5,.7);await move(p[0],p[1],520,id);await sleep(900,id)}
+   const f=$$('.file',act)[0];let p=pt(f,.3,.5);await move(p[0],p[1],700,id);await sleep(1500,id);
+   const[x,y]=bodyPt(.88,.2);await move(x,y,900,id);await sleep(1800,id);
+  }}
+};
+function stopGhost(){runId++;ghost.classList.remove('on');if(ghostHoverEl){ghostHover(-1,-1)}}
+function startGhost(){
+  stopGhost();if(!deskVisible)return;
+  if(RM&&!TOUCH){return} // reduced motion: no autoplay, the visitor drives
+  if(Date.now()-realAt<2500)return;
+  const id=runId;
+  if(!gx&&!gy){const[x,y]=bodyPt(.7,.7);gset(x,y)}
+  ghost.classList.add('on');
+  SCRIPTS[mode](id).catch(e=>{if(e!==CANCEL)console.error(e)});
+}
+function userTook(keep){realAt=Date.now();if(ghost.classList.contains('on')){stopGhost();clearEdges();if(!keep&&mode==='pages')closePal()}clearTimeout(resumeT);resumeT=setTimeout(startGhost,TOUCH?5000:6000)}
+
+/* real pointer */
+// 마우스가 목업 위를 지나가기만 해서는 자동 시연을 멈추지 않는다.
+// 직접 해 보려는 신호(펼치기 데모에서 창 끝 가까이 가기, 목업 안을 누르기, 단축키)가 있을 때만 넘겨받는다.
+desk.addEventListener('pointermove',e=>{
+  if(e.pointerType!=='mouse')return;
+  const b=fbody.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top;
+  const inBody=y>=0&&y<=b.height;
+  const nearEdge=mode==='edge'&&inBody&&(x<48||(rightOn&&x>b.width-48));
+  if(nearEdge){userTook(true);edgeAt(x,y)}                       // 끝에 닿으려 함: 방문자가 넘겨받는다
+  else if(!ghost.classList.contains('on')){                         // 이미 넘겨받은 뒤: 패널 안에 있는 동안만 계속 쥐고,
+    const inPanel=fig.classList.contains('l-open')&&x<lp.offsetWidth||fig.classList.contains('r-open')&&x>b.width-rp.offsetWidth;
+    if(inPanel)userTook(true);                                      // 그 밖에서는 잠시 뒤 자동 시연이 다시 이어진다
+    edgeAt(x,y)}
+});
+desk.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')userTook(true)});
+desk.addEventListener('pointerleave',e=>{if(e.pointerType!=='mouse')return;
+  // leaving the "screen" counts as moving away
+  edgeAt(9999,-9999);edgeL.classList.remove('near','hit');
+  // 자동 시연이 이미 돌고 있으면 그대로 둔다 (처음부터 다시 시작하지 않게). 방문자가 쥐고 있었을 때만 곧 이어 간다.
+  if(!ghost.classList.contains('on')){clearTimeout(resumeT);resumeT=setTimeout(startGhost,1800)}});
+// touch: tap near an edge toggles, anything else pauses the ghost
+desk.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')return;userTook(true);
+  const b=fbody.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top;
+  if(y<0||y>b.height)return;
+  if(x<36){setOpen('l',true)}else if(rightOn&&x>b.width-36){setOpen('r',true)}
+  else{if(fig.classList.contains('l-open')&&x>lp.offsetWidth)setOpen('l',false);if(fig.classList.contains('r-open')&&x<b.width-rp.offsetWidth)setOpen('r',false)}
+});
+
+setMode(CAP[new URLSearchParams(location.search).get('mode')]?new URLSearchParams(location.search).get('mode'):'edge');
+})();
+</script>
+</body>
+</html>
