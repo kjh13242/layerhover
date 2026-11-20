@@ -93,6 +93,10 @@ final class ActivityLog {
         dirty = true
     }
 
+    /// 패널 머리의 한 줄에 쓰는 숫자 (오늘 작업한 시간, 지금 쉬지 않고 이어 온 시간)
+    var todayActive: Double { rollDayIfNeeded(); return today.active }
+    var currentStreak: Double { streak }
+
     private func endStreak() {
         if streak >= ActivityLog.focusMinimum {
             today.focus += streak

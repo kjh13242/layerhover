@@ -2010,6 +2010,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                      "collapseDelay": 0.12, "leaveMargin": 12.0,
                                      "hardDwell": 0.06, "softDwell": 0.18,
                                      "showPageChip": true, "pageShortcuts": true, "workLog": true, "coverPanel": false, "animateMark": true, "weatherMode": 0])
+        defaults.removeObject(forKey: "animateMark")      // 움직임 끄기 설정은 없앴다: 예전에 꺼 둔 값이 남아 멈춰 있지 않게
         engine.coverPanel = defaults.bool(forKey: "coverPanel")
         ActivityLog.shared.enabled = defaults.bool(forKey: "workLog")
         engine.enabled = defaults.bool(forKey: "enabled")
@@ -2105,7 +2106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         showGuide()
     }
 
-    /// 화면 확인 모드에서 LAYERHOVER_UI_SCRIPT 로 시키는 일 (쉼표로 구분): panel, settings, welcome, switch
+    /// 화면 확인 모드에서 LAYERHOVER_UI_SCRIPT 로 시키는 일 (쉼표로 구분): panel, settings, welcome, summary, switch
     ///  switch 는 13개 아이콘을 차례로 골라 바뀌는 데 걸린 시간을 기록하고 원래 고른 것으로 되돌린다.
     private func runPreviewScript() {
         let steps = (ProcessInfo.processInfo.environment["LAYERHOVER_UI_SCRIPT"] ?? "").split(separator: ",").map(String.init)
@@ -2128,6 +2129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if steps.contains("panel") { togglePanel() }
             if steps.contains("settings") { showSettings() }
             if steps.contains("welcome") { showGuide() }
+            if steps.contains("summary") { showSummary() }
         }
     }
 
@@ -2242,6 +2244,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         m.trusted = uiTrusted()
         m.enabled = engine.enabled
         m.figmaRunning = !NSRunningApplication.runningApplications(withBundleIdentifier: figmaBundleID).isEmpty
+        m.cheer = Cheer.line(trusted: m.trusted, awake: m.enabled, figmaRunning: m.figmaRunning, logging: ActivityLog.shared.enabled,
+                             active: ActivityLog.shared.todayActive, streak: ActivityLog.shared.currentStreak,
+                             hour: Calendar.current.component(.hour, from: Date()))
+        m.dayProgress = min(1, ActivityLog.shared.todayActive / (6 * 3600))
+        m.working = ActivityLog.shared.currentStreak > 0
+        m.restHint = Cheer.restHint(active: ActivityLog.shared.todayActive, streak: ActivityLog.shared.currentStreak,
+                                    hour: Calendar.current.component(.hour, from: Date()))
         m.version = version
         m.marks = MarkLibrary.shared.marks
         m.selectedMark = currentMarkID
@@ -2536,6 +2545,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let w = NSWindow(contentViewController: host)
         w.title = "Layerhover"
         w.styleMask = [.titled, .closable, .fullSizeContentView]
+        w.isOpaque = false; w.backgroundColor = .clear         // 유리: 창 뒤가 비치게
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
         w.isReleasedWhenClosed = false
@@ -2561,6 +2571,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if #available(macOS 13.0, *) { host.sizingOptions = [] }
         let w = NSWindow(contentViewController: host)
         w.title = L("Layerhover 설정", "Layerhover Settings")
+        w.isOpaque = false; w.backgroundColor = .clear         // 유리: 창 뒤가 비치게
         w.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
@@ -2682,6 +2693,8 @@ if let i = args.firstIndex(of: "--render-menu"), args.count > i + 1 {
     m.enabled = state != "paused"; m.figmaRunning = state != "nofigma"; m.trusted = state != "untrusted"
     if state == "blocked" { m.motionBlocked = L("macOS '동작 줄이기'가 켜져 있어 멈춰 있어요", "Paused because Reduce Motion is on") }
     if state == "settings" { m.coverPanel = true; m.coverNeedsPermission = true }
+    m.cheer = Cheer.line(trusted: m.trusted, awake: m.enabled, figmaRunning: m.figmaRunning, logging: true, active: 2 * 3600 + 40 * 60, streak: 0, hour: 15)
+    m.dayProgress = (2 * 3600 + 40 * 60) / (6 * 3600); m.working = true
     if args.contains("--weather") { m.weatherMode = 2; m.weatherStatus = "4° 맑음 · 오후 12:57에 받음"; m.weatherTemp = 4; MarkLibrary.shared.weatherMark = "wx-clear" }
     if args.contains("--weather-denied") { m.weatherMode = 1; m.weatherStatus = L("위치 권한이 꺼져 있어요", "Location access is off"); m.weatherDenied = true }
     if let s = args.firstIndex(of: "--settings") {

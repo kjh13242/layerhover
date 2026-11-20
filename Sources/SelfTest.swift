@@ -67,6 +67,11 @@ func runSelfTests() -> Bool {
         check("wttr 코드 \(code)\(day ? "" : " 밤") → \(want)", WeatherService.wwoMarkID(code: code, isDay: day) == want)
     }
     check("초당 8장면", lib.fps == 8)
+    check("패널 한 줄: 쉬는 중·오래 집중·시간 표기", {
+        let rest = Cheer.line(trusted: true, awake: false, figmaRunning: true, logging: true, active: 0, streak: 0, hour: 10)
+        let long = Cheer.line(trusted: true, awake: true, figmaRunning: true, logging: true, active: 9000, streak: 5600, hour: 15)
+        return rest != long && long.contains(Cheer.duration(5600)) && Cheer.duration(3900) == L("1시간 5분", "1 hr 5 min")
+    }())
     check("업데이트 버전 비교", Updater.isNewer("1.6.1", than: "1.6.0") && Updater.isNewer("1.10", than: "1.9.9")
           && !Updater.isNewer("1.6.0", than: "1.6.0") && !Updater.isNewer("1.5.9", than: "1.6"))
     check("이름이 한국어·영어 모두 있다 (NFR-008)", lib.marks.allSatisfy { !$0.ko.isEmpty && !$0.en.isEmpty })

@@ -60,18 +60,25 @@ struct SummaryView: View {
                         Text(model.rangeText).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button { model.shift(-1) } label: { Image(systemName: "chevron.left") }
-                        .help(L("지난주", "Previous week"))
-                    Button { model.weekStart = Date(); model.reload() } label: { Text(L("이번 주", "This week")) }
-                    Button { model.shift(1) } label: { Image(systemName: "chevron.right") }
-                        .help(L("다음 주", "Next week"))
+                    HStack(spacing: 8) {
+                        Button { model.shift(-1) } label: { LHIcon(symbol: "chevron.left").frame(width: 32, height: 32) }
+                            .buttonStyle(QuietButtonStyle())
+                            .help(L("지난주", "Previous week"))
+                        Button { model.weekStart = Date(); model.reload() } label: {
+                            Text(L("이번 주", "This week")).font(.system(size: 12.5, weight: .medium)).padding(.horizontal, 12).frame(height: 32)
+                        }
+                        .buttonStyle(QuietButtonStyle())
+                        Button { model.shift(1) } label: { LHIcon(symbol: "chevron.right").frame(width: 32, height: 32) }
+                            .buttonStyle(QuietButtonStyle())
+                            .help(L("다음 주", "Next week"))
+                    }
                 }
 
                 HStack(spacing: 12) {
-                    tile(L("작업 시간", "Time in Figma"), durationText(t.active),
-                         L("Figma가 앞에 있고 손을 대고 있던 시간", "Figma in front and you were active"))
-                    tile(L("집중 시간", "Focus time"), durationText(t.focus),
-                         L("10분 넘게 이어진 작업 구간", "Stretches longer than 10 minutes"))
+                    tile(L("작업 시간", "Time in Figma"), durationText(t.active), nil,
+                         help: L("Figma가 앞에 있고 손을 대고 있던 시간", "Figma in front and you were active"))
+                    tile(L("집중 시간", "Focus time"), durationText(t.focus), nil,
+                         help: L("10분 넘게 이어진 작업 구간", "Stretches longer than 10 minutes"))
                     tile(L("가장 긴 집중", "Longest focus"), durationText(t.longestFocus), nil)
                     tile(L("페이지 이동", "Page moves"), "\(t.edgeSwitches + t.manualSwitches)",
                          L("Layerhover \(t.edgeSwitches) · 직접 \(t.manualSwitches)",
@@ -106,21 +113,33 @@ struct SummaryView: View {
                 }
                 .frame(height: SummaryView.rankingHeight, alignment: .top)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L("다른 앱으로 넘어간 횟수: \(t.leaves)번 · 화면 끝으로 패널 꺼냄: \(t.reveals)번 · 이동 창 열기: \(t.paletteOpens)번",
-                           "Left Figma \(t.leaves)× · Panel reveals \(t.reveals)× · Page window \(t.paletteOpens)×"))
-                        .foregroundStyle(.secondary)
-                    Text(L("기록은 이 Mac에만 저장되고 밖으로 보내지 않아요. 작업량 비교가 아니라 스스로 돌아보는 용도예요.",
-                           "Stored only on this Mac and never sent anywhere. Meant for your own reflection, not comparison."))
-                        .font(.caption).foregroundStyle(.tertiary)
+                HStack(spacing: 20) {
+                    stat("arrow.up.forward.app", t.leaves, L("다른 앱으로 넘어간 횟수", "Times you left Figma"))
+                    stat("sidebar.left", t.reveals, L("화면 끝으로 패널을 꺼낸 횟수", "Panel reveals at the edge"))
+                    stat("doc.text.magnifyingglass", t.paletteOpens, L("페이지 찾기 창을 연 횟수", "Times the page finder opened"))
+                    Spacer()
+                    HStack(spacing: 4) {
+                        LHIcon(symbol: "lock")
+                        Text(L("이 Mac에만", "This Mac only"))
+                    }
+                    .font(.system(size: 11.5)).foregroundStyle(.tertiary)
+                    .help(L("기록은 이 Mac에만 저장되고 밖으로 보내지 않아요. 스스로 돌아보는 용도예요.",
+                            "Stored only on this Mac, never sent anywhere. For your own reflection."))
                 }
-                .lineLimit(1)
-                .frame(height: 36, alignment: .top)
+                .frame(height: 36)
 
                 HStack {
-                    Button(L("CSV로 내보내기…", "Export CSV…"), action: export)
+                    Button(action: export) {
+                        HStack(spacing: 8) { LHIcon(symbol: "square.and.arrow.up"); Text(L("CSV로 내보내기…", "Export CSV…")) }
+                            .font(.system(size: 12.5, weight: .medium)).padding(.horizontal, 12).frame(height: 32)
+                    }
+                    .buttonStyle(QuietButtonStyle())
                     Spacer()
-                    Button(L("기록 모두 지우기…", "Erase All…"), role: .destructive, action: erase)
+                    Button(role: .destructive, action: erase) {
+                        HStack(spacing: 8) { LHIcon(symbol: "trash"); Text(L("기록 모두 지우기…", "Erase All…")) }
+                            .font(.system(size: 12.5, weight: .medium)).foregroundStyle(.red).padding(.horizontal, 12).frame(height: 32)
+                    }
+                    .buttonStyle(QuietButtonStyle())
                 }
             }
             .padding(24)
@@ -132,7 +151,7 @@ struct SummaryView: View {
     static let rows = 5                                   // 순위에 보여 주는 줄 수 (항상 이만큼 자리를 잡아 둔다)
     static let rowHeight: CGFloat = 40
     static let rankingHeight: CGFloat = 28 + CGFloat(rows) * rowHeight
-    static let size = NSSize(width: 700, height: 48 + 44 + 98 + 200 + rankingHeight + 36 + 28 + 18 * 5)
+    static let size = NSSize(width: 700, height: 48 + 44 + 80 + 200 + rankingHeight + 36 + 28 + 18 * 5)
 
     private func weekday(_ date: String) -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
@@ -142,15 +161,28 @@ struct SummaryView: View {
         return o.string(from: d)
     }
 
-    private func tile(_ title: String, _ value: String, _ note: String?) -> some View {
+    private func tile(_ title: String, _ value: String, _ note: String?, help: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             Text(value).font(.title3.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
             if let note { Text(note).font(.caption2).foregroundStyle(.tertiary).lineLimit(2) }
         }
-        .frame(maxWidth: .infinity, minHeight: 74, maxHeight: 74, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 56, maxHeight: 56, alignment: .topLeading)   // 설명 줄을 뺀 만큼 낮춘다
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
+        .background(GlassFill(radius: 10))
+        .help(help ?? "")
+    }
+
+    /// 아래 줄의 숫자 하나: 아이콘 + 숫자. 무엇의 횟수인지는 마우스를 올리면 나온다.
+    private func stat(_ symbol: String, _ n: Int, _ meaning: String) -> some View {
+        HStack(spacing: 4) {
+            LHIcon(symbol: symbol)
+            Text("\(n)").monospacedDigit()
+        }
+        .font(.system(size: 12.5)).foregroundStyle(.secondary)
+        .help(meaning)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(meaning) \(n)")
     }
 
     /// 순위 한 칸. 항목이 적어도 항상 rows 줄 높이를 차지한다. sub는 페이지가 속한 파일 이름.
@@ -203,16 +235,21 @@ final class SummaryWindow: NSObject, NSWindowDelegate {
         model.weekStart = Date()
         model.reload()
         if let w = window { w.makeKeyAndOrderFront(nil); return }
+        // 유리 창: 창 뒤가 비치게 하고, 제목 막대까지 같은 유리로 덮는다 (내용은 제목 막대 아래 그대로).
         let host = NSHostingController(rootView: SummaryView(model: model,
                                                              export: { [weak self] in self?.export() },
-                                                             erase: { [weak self] in self?.erase() }))
+                                                             erase: { [weak self] in self?.erase() })
+            .background(WindowGlass().ignoresSafeArea()))
         if #available(macOS 13.0, *) { host.sizingOptions = [] }   // 내용에 따라 창 크기를 바꾸지 않는다
         let w = NSWindow(contentViewController: host)
         w.title = L("작업 기록", "Activity")
-        w.styleMask = [.titled, .closable, .miniaturizable]
-        w.setContentSize(SummaryView.size)
-        w.contentMinSize = SummaryView.size
-        w.contentMaxSize = SummaryView.size
+        w.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        w.titlebarAppearsTransparent = true
+        w.isOpaque = false; w.backgroundColor = .clear
+        let size = NSSize(width: SummaryView.size.width, height: SummaryView.size.height + 28)   // 제목 막대 자리만큼
+        w.setContentSize(size)
+        w.contentMinSize = size
+        w.contentMaxSize = size
         w.isReleasedWhenClosed = false
         w.delegate = self
         w.center()

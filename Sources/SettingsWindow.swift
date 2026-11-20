@@ -26,8 +26,8 @@ extension SettingsPane {
         switch self {
         case .reveal: return "sidebar.left"
         case .pages: return "doc.text.magnifyingglass"
-        case .general: return "gearshape.fill"
-        case .about: return "info"
+        case .general: return "gearshape"
+        case .about: return "info.circle"
         }
     }
     var tint: Color {
@@ -56,15 +56,16 @@ enum SettingsStyle {
 
 // MARK: - 부품
 
-/// 시스템 설정의 칸 아이콘: 색 있는 둥근 네모 안의 흰 기호
+/// 칸 아이콘: 패널 안 아이콘과 같은 느낌 — 유리 칸 위의 한 가지 색 선 기호 (색 있는 네모를 쓰지 않는다)
 struct PaneIcon: View {
     let pane: SettingsPane
     var size: CGFloat = 20
+    var highlighted = false
     var body: some View {
-        RoundedRectangle(cornerRadius: size * 0.25, style: .continuous)
-            .fill(LinearGradient(colors: [pane.tint.opacity(0.85), pane.tint], startPoint: .top, endPoint: .bottom))
+        GlassFill(radius: size * 0.3)
             .frame(width: size, height: size)
-            .overlay(Image(systemName: pane.symbol).font(.system(size: size * 0.52, weight: .semibold)).foregroundStyle(.white))
+            .overlay(LHIcon(symbol: pane.symbol, size: size >= 32 ? LHIcon.s24 : LHIcon.s16, weight: .medium)
+                .foregroundStyle(highlighted ? LH.accent : Color.primary))
             .accessibilityHidden(true)
     }
 }
@@ -82,9 +83,8 @@ struct SettingsCard<Content: View>: View {
             }
             VStack(alignment: .leading, spacing: 0) { content }
                 .padding(.horizontal, 16)
-                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(SettingsStyle.card))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(SettingsStyle.cardBorder))
-            if let footnote {
+                .background(GlassFill(radius: 12))
+            if let footnote, footnote.isEmpty {     // 덧붙임 설명은 보이지 않는다 (위 규칙과 같음)
                 Text(footnote).font(.system(size: 11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4).padding(.top, 4)
             }
@@ -105,10 +105,9 @@ struct SettingRow<Trailing: View>: View {
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
+                // 설명은 줄 아래에 쓰지 않는다 — 이름과 조절하는 것만 보이고, 설명은 마우스를 올리면 나온다
                 Text(title).font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
-                if let note {
-                    Text(note).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
+                    .help(note ?? "")
                 if let warning {
                     Label(warning, systemImage: "exclamationmark.triangle.fill")
                         .font(.system(size: 11)).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -123,15 +122,113 @@ struct SettingRow<Trailing: View>: View {
     }
 }
 
-/// 시스템 설정과 같은 작은 스위치
+/// 켬·끔 두 칸 — 스위치 대신 속도 고르기와 같은 선택 막대를 쓴다 (한 가지 조작 방식)
 struct SettingSwitch: View {
     let isOn: Bool
     let label: String
     let action: () -> Void
     var body: some View {
-        Toggle(label, isOn: Binding(get: { isOn }, set: { _ in action() }))
-            .toggleStyle(.switch).controlSize(.small).labelsHidden()
-            .frame(minWidth: 40, minHeight: 28, alignment: .trailing)
+        LHSegmented(options: [L("켬", "On"), L("끔", "Off")], selection: isOn ? 0 : 1, label: label, height: 24, fontSize: 12) { i in
+            if (i == 0) != isOn { action() }
+        }
+        .frame(width: 96)
+    }
+}
+
+/// 속도 미리보기: 작은 화면에서 커서가 끝에 닿고 → 고른 만큼 기다렸다 → 패널이 나오고 → 벗어나면 고른 만큼 뒤에 접힌다.
+/// 실제 지연(0~0.4초)은 너무 짧아 보이지 않으니 차이가 보이도록 늘려 보여 준다.
+struct SpeedPreview: View {
+    let reveal: Int?
+    let collapse: Int?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View {
+        TimelineView(.animation(paused: reduceMotion)) { ctx in
+            Canvas { g, size in
+                let dR = [0, 0.3, 0.9][reveal ?? 1], dC = [0, 0.4, 1.1][collapse ?? 1]
+                let move = 0.5, slide = 0.2, hold = 0.9, back = 0.4, rest = 0.6
+                let total = move + dR + slide + hold + back + dC + slide + rest
+                let t = reduceMotion ? move + dR + slide : ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: total)
+                func ease(_ x: Double) -> Double { let c = min(max(x, 0), 1); return c * c * (3 - 2 * c) }
+                var px = 0.62, open = 0.0
+                let t1 = move, t2 = t1 + dR, t3 = t2 + slide, t4 = t3 + hold, t5 = t4 + back, t6 = t5 + dC, t7 = t6 + slide
+                if t < t1 { px = 0.62 - 0.62 * ease(t / move) } else if t < t4 { px = 0; if t >= t3 - 0.6 * hold { px = min(0.14, (t - t3) / hold * 0.3) } }
+                else if t < t5 { px = 0.14 + 0.48 * ease((t - t4) / back) } else { px = 0.62 }
+                if t >= t2 && t < t3 { open = ease((t - t2) / slide) } else if t >= t3 && t < t6 { open = 1 } else if t >= t6 && t < t7 { open = 1 - ease((t - t6) / slide) }
+                // 캔버스의 프레임
+                g.fill(Path(roundedRect: CGRect(x: size.width * 0.36, y: size.height * 0.24, width: size.width * 0.34, height: size.height * 0.52), cornerRadius: 3),
+                       with: .color(.primary.opacity(0.1)))
+                // 끝에 닿은 순간 왼쪽 끝이 빛난다
+                if px < 0.01 && open < 1 { g.fill(Path(CGRect(x: 0, y: 6, width: 2, height: size.height - 12)), with: .color(LH.accent.opacity(0.7))) }
+                // 레이어 패널
+                let w = size.width * 0.28
+                let panel = CGRect(x: -w + w * open + 4, y: 4, width: w, height: size.height - 8)
+                if open > 0 {
+                    g.fill(Path(roundedRect: panel, cornerRadius: 5), with: .color(.primary.opacity(0.16)))
+                    for i in 0..<4 {
+                        g.fill(Path(roundedRect: CGRect(x: panel.minX + 6, y: panel.minY + 8 + CGFloat(i) * 9, width: panel.width * (i == 1 ? 0.5 : 0.7), height: 3), cornerRadius: 1.5),
+                               with: .color(.primary.opacity(0.28)))
+                    }
+                }
+                // 커서
+                let cx = max(3, px * size.width + 3), cy = size.height * 0.5
+                var arrow = Path()
+                arrow.move(to: CGPoint(x: cx, y: cy)); arrow.addLine(to: CGPoint(x: cx, y: cy + 11)); arrow.addLine(to: CGPoint(x: cx + 3, y: cy + 8))
+                arrow.addLine(to: CGPoint(x: cx + 8, y: cy + 8)); arrow.closeSubpath()
+                g.fill(arrow, with: .color(.primary))
+                g.stroke(arrow, with: .color(Color(nsColor: .windowBackgroundColor)), lineWidth: 0.8)
+            }
+        }
+        .frame(height: 72)
+        .background(GlassFill(radius: 8, lift: 0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityLabel(L("펼치고 접히는 속도 미리보기", "Preview of reveal and fold speed"))
+    }
+}
+
+/// 펼치는 곳: 작은 화면의 끝을 직접 눌러 고른다. 켜진 끝은 빛나고, 그 끝에서 나오는 패널이 옅게 보인다.
+struct EdgePicker: View {
+    let right: Bool
+    let toggleRight: () -> Void
+    @State private var hoverRight = false
+    var body: some View {
+        HStack(spacing: 0) {
+            edge(on: true, side: .leading, title: L("레이어", "Layers"), enabled: false)
+            Spacer(minLength: 0)
+            RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.1)).frame(width: 64, height: 40)
+            Spacer(minLength: 0)
+            Button(action: toggleRight) { edge(on: right, side: .trailing, title: L("속성", "Properties"), enabled: true) }
+                .buttonStyle(.plain)
+                .onHover { hoverRight = $0 }
+                .help(right ? L("오른쪽 끝 끄기", "Turn off the right edge") : L("오른쪽 끝도 쓰기", "Use the right edge too"))
+                .accessibilityLabel(L("오른쪽 끝에서도 펼치기", "Right edge too"))
+                .accessibilityAddTraits(right ? [.isButton, .isSelected] : .isButton)
+        }
+        .padding(4)
+        .frame(height: 96)
+        .background(GlassFill(radius: 8, lift: 0.6))
+        .padding(.vertical, 12)
+    }
+    private func edge(on: Bool, side: HorizontalEdge, title: String, enabled: Bool) -> some View {
+        let lit = on || (enabled && hoverRight)
+        return HStack(spacing: 0) {
+            if side == .trailing { Spacer(minLength: 0) }
+            if side == .leading { bar(lit: lit, on: on) }
+            VStack(spacing: 4) {
+                ForEach(0..<4, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 1.5).fill(Color.primary.opacity(on ? 0.3 : 0.12)).frame(width: i == 1 ? 24 : 36, height: 3)
+                }
+                Text(title).font(.system(size: 10.5, weight: .medium)).foregroundStyle(on ? .primary : .tertiary).padding(.top, 4)
+            }
+            .frame(width: 64, height: 88)
+            .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(on ? 0.12 : 0.03)))
+            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.primary.opacity(on ? 0 : 0.15), style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
+            if side == .trailing { bar(lit: lit, on: on) }
+        }
+        .frame(width: 72)
+        .contentShape(Rectangle())
+    }
+    private func bar(lit: Bool, on: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 1).fill(lit ? LH.accent.opacity(on ? 0.7 : 0.35) : Color.primary.opacity(0.12)).frame(width: 2, height: 72)
     }
 }
 
@@ -159,10 +256,11 @@ struct SettingsView: View {
     var body: some View {
         HStack(spacing: 0) {
             sidebar
-            Rectangle().fill(SettingsStyle.separator).frame(width: 1)
+            Rectangle().fill(rendering ? SettingsStyle.separator : LH.fill(0.08)).frame(width: 1)
             detail
         }
         .frame(width: SettingsStyle.size.width, height: SettingsStyle.size.height)
+        .background { if !rendering { WindowGlass() } }
         .ignoresSafeArea()          // 투명 제목 막대 밑까지 채운다 (안 하면 28pt 밀려 내려가 아래가 잘린다)
         .background(hiddenShortcuts)
     }
@@ -188,18 +286,12 @@ struct SettingsView: View {
             }
             ForEach(SettingsPane.allCases) { pane in sidebarRow(pane) }
             Spacer()
-            HStack(spacing: 8) {
-                Circle().fill(model.status.color).frame(width: 8, height: 8)
-                Text(model.status.text).lineLimit(1)
-            }
-            .font(.system(size: 11)).foregroundStyle(.secondary)
-            .padding(.horizontal, 12).padding(.bottom, 16)
         }
         .padding(.horizontal, 12)
         .frame(width: SettingsStyle.sidebarWidth)
         .frame(maxHeight: .infinity)
         .background {
-            if rendering { SettingsStyle.sidebar } else { VisualEffect(material: .sidebar) }
+            if rendering { SettingsStyle.sidebar } else { LH.fill(0.03) }
         }
     }
 
@@ -208,14 +300,13 @@ struct SettingsView: View {
         let active = rendering || activeState == .key || activeState == .active
         return Button { model.settingsPane = pane } label: {
             HStack(spacing: 8) {
-                PaneIcon(pane: pane)
-                Text(pane.title).font(.system(size: 13)).lineLimit(1)
-                    .foregroundStyle(selected && active ? Color.white : Color.primary)
+                PaneIcon(pane: pane, highlighted: selected && active)
+                Text(pane.title).font(.system(size: 13, weight: selected ? .semibold : .regular)).lineLimit(1)
+                    .foregroundStyle(Color.primary)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 8).frame(height: 32)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(selected ? (active ? Color.accentColor : LH.fill(0.1)) : .clear))
+            .background { if selected { GlassFill(radius: 8, tint: active ? LH.accent : nil) } }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -229,10 +320,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 PaneIcon(pane: model.settingsPane, size: 36)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(model.settingsPane.title).font(.system(size: 17, weight: .bold))
-                    Text(model.settingsPane.subtitle).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
-                }
+                // 제목만 둔다 — 무엇을 정하는 곳인지는 아래 묶음 이름과 그림이 보여 준다 (설명은 마우스를 올리면)
+                Text(model.settingsPane.title).font(.system(size: 17, weight: .bold))
+                    .help(model.settingsPane.subtitle)
             }
             .padding(.horizontal, 28).padding(.top, 32).padding(.bottom, 20)
             ScrollView {
@@ -242,7 +332,7 @@ struct SettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(SettingsStyle.detail)
+        .background { if rendering { SettingsStyle.detail } }
     }
 
     @ViewBuilder private var pane: some View {
@@ -261,6 +351,8 @@ struct SettingsView: View {
             SettingsCard(title: L("속도", "Speed"),
                          footnote: L("느긋하게 두면 마우스가 화면 끝을 스치기만 할 때는 펼쳐지지 않아요.",
                                      "Relaxed keeps panels shut when the pointer only brushes past the edge.")) {
+                SpeedPreview(reveal: model.reveal, collapse: model.collapse).padding(.vertical, 12)
+                CardDivider()
                 SettingRow(title: L("펼칠 때", "Reveal"),
                            note: [L("화면 끝에 닿자마자 펼쳐요", "Opens the moment the pointer touches the edge"),
                                   L("끝에 0.06초 머물면 펼쳐요", "Opens after 0.06 s at the edge"),
@@ -276,10 +368,7 @@ struct SettingsView: View {
                 }
             }
             SettingsCard(title: L("펼치는 곳", "Where")) {
-                SettingRow(title: L("오른쪽 끝에서도 펼치기", "Right edge too"),
-                           note: L("화면 오른쪽 끝에 대면 속성 패널도 나와요", "The right edge brings out the properties panel")) {
-                    SettingSwitch(isOn: model.rightEdge, label: L("오른쪽 끝에서도 펼치기", "Right edge too"), action: model.actions.toggleRightEdge)
-                }
+                EdgePicker(right: model.rightEdge, toggleRight: model.actions.toggleRightEdge)
                 CardDivider()
                 SettingRow(title: L("새 파일은 패널을 접고 시작", "Start new files minimized"),
                            note: L("처음 여는 파일을 최소화 모드(⇧⌘\\)로 열어요", "Files you open for the first time start in Minimize UI (⇧⌘\\)")) {
@@ -323,12 +412,6 @@ struct SettingsView: View {
                     SettingSwitch(isOn: model.launchAtLogin, label: L("로그인할 때 열기", "Open at login"), action: model.actions.toggleLogin)
                 }
             }
-            SettingsCard(title: L("메뉴 막대", "Menu Bar")) {
-                SettingRow(title: L("아이콘 움직이기", "Animate icon"),
-                           note: model.motionBlocked ?? L("끄면 메뉴 막대 아이콘이 멈춘 그림으로 보여요", "Turn off to keep the menu bar icon still")) {
-                    SettingSwitch(isOn: model.animateMark, label: L("아이콘 움직이기", "Animate icon"), action: model.actions.toggleAnimate)
-                }
-            }
             SettingsCard(title: L("작업 기록", "Activity")) {
                 SettingRow(title: L("작업 시간 기록하기", "Record time in Figma"),
                            note: L("파일별 작업 시간을 이 Mac에만 저장해요", "Keeps time per file on this Mac only")) {
@@ -354,7 +437,7 @@ struct SettingsView: View {
     private var aboutPane: some View {
         Group {
             HStack(spacing: 16) {
-                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(LH.fill(0.06)).frame(width: 52, height: 52)
+                GlassFill(radius: 12).frame(width: 52, height: 52)
                     .overlay(MarkImage(id: model.weatherMode > 0 ? MarkLibrary.weatherID : model.selectedMark, playing: false, size: 30))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Layerhover").font(.system(size: 15, weight: .semibold))
