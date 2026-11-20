@@ -276,6 +276,7 @@ final class MenuModel: ObservableObject {
     @Published var rightEdge = false
     @Published var minimizeByDefault = true
     @Published var showChip = true
+    @Published var chipPlace = 0           // PageChipPlace: 0 왼쪽 아래 · 1 왼쪽 위 · 2 가운데 위
     @Published var shortcutsOn = true
     @Published var coverPanel = false
     @Published var coverNeedsPermission = false
@@ -305,10 +306,12 @@ final class MenuModel: ObservableObject {
         var toggleRightEdge: () -> Void = {}
         var toggleMinimize: () -> Void = {}
         var toggleChip: () -> Void = {}
+        var setChipPlace: (Int) -> Void = { _ in }
         var toggleShortcuts: () -> Void = {}
         var toggleCover: () -> Void = {}
         var toggleWorkLog: () -> Void = {}
         var toggleLogin: () -> Void = {}
+        var setLanguage: (String) -> Void = { _ in }
         var connectClaude: () -> Void = {}
         var showGuide: () -> Void = {}
         var showLog: () -> Void = {}
@@ -591,7 +594,7 @@ struct MenuPanelView: View {
                     // 예시 온도: 지금 온도가 아니라 "온도가 붙는다"는 모양 (자리수가 바뀌어도 흔들리지 않게 고정)
                     if temp { Text("20°").font(.system(size: 12.5, weight: .semibold).monospacedDigit()) }
                 }
-                Text(temp ? L("날씨와 온도", "With temperature") : L("날씨", "Weather"))
+                Text(temp ? L("날씨와 온도", "+ Temp") : L("날씨", "Weather"))
                     .font(.system(size: 12.5)).foregroundStyle(selected ? Color.primary : Color.secondary)
                 Spacer(minLength: 0)
             }

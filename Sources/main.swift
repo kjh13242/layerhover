@@ -12,7 +12,9 @@ import SwiftUI
 import Carbon
 
 let figmaBundleID = "com.figma.Desktop"
-let isKorean = (Locale.preferredLanguages.first ?? "en").hasPrefix("ko")
+/// 화면 언어: 설정 > 일반 > 언어 (자동이면 macOS 언어를 따른다). 바꾸면 앱이 다시 시작해 적용한다.
+let appLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "auto"
+let isKorean = appLanguage == "auto" ? (Locale.preferredLanguages.first ?? "en").hasPrefix("ko") : appLanguage == "ko"
 func L(_ ko: String, _ en: String) -> String { isKorean ? ko : en }
 
 let args = CommandLine.arguments
@@ -118,6 +120,7 @@ struct PaneLayout {
     var leftPanel: CGRect?            // 펼쳐진 왼쪽 패널
     var rightPanel: CGRect?           // 펼쳐진 오른쪽 패널
     var toolbar: CGRect?              // 아래쪽 가운데 도구 막대
+    var filePill: CGRect?             // UI가 접혀 있을 때 왼쪽 위의 파일 이름 칸 (페이지 버튼을 그 아래 같은 폭으로 둔다)
     var floating = false              // 메뉴·팝업·색상 선택기 같은 떠 있는 UI가 열려 있음
     var loaded = false                // 편집 화면의 패널 구조가 만들어져 있음 (로딩 중이 아님)
     var isMinimized: Bool { expandButton != nil }
@@ -257,6 +260,20 @@ enum FigmaReader {
         return out
     }
 
+    /// 왼쪽 위 파일 이름 칸: "Expand UI" 버튼을 품은 가장 가까운 조상 중, 화면 왼쪽 위에 붙은 낮고 넓은 칸.
+    static func filePill(around button: AXUIElement, pane: CGRect) -> CGRect? {
+        guard let b = button.frame else { return nil }
+        var e: AXUIElement? = button.element(kAXParentAttribute)
+        for _ in 0..<6 {
+            guard let cur = e else { return nil }
+            if let f = cur.frame, f.width >= b.width + 40, f.width <= 600, f.height <= 72, f.minX - pane.minX < 40, f.minY - pane.minY < 40 {
+                return f
+            }
+            e = cur.element(kAXParentAttribute)
+        }
+        return nil
+    }
+
     /// 편집 화면 하나에서 좌우 패널과 접기/펼치기 버튼을 찾는다.
     /// 레이어 목록처럼 큰 하위 트리는 건너뛰어서 가볍게 유지한다.
     static func layout(of webArea: AXUIElement) -> PaneLayout {
@@ -277,7 +294,7 @@ enum FigmaReader {
                 return
             }
             if role == "AXButton" {
-                if hasClass(classes, "toggle_expanded_sidebar_button") { result.expandButton = e }
+                if hasClass(classes, "toggle_expanded_sidebar_button") { result.expandButton = e; result.filePill = filePill(around: e, pane: paneFrame) }
                 return
             }
             if hasClass(classes, "toolbelt--toolbeltWrapper") { result.toolbar = e.frame; return }
@@ -381,6 +398,7 @@ final class Pane {
     var mode = Mode.unknown
     var lastPagesRead: TimeInterval = 0
     var toolbar: CGRect?
+    var filePill: CGRect?
     var pageID: String?                          // 마지막으로 읽은 주소의 페이지 번호
     var agents = 0                               // Figma가 보여 주는 연결된 AI 에이전트 수
     var popupOpen = false                        // Figma 메뉴·팝업이 열려 있다 (그동안 페이지 버튼은 비켜 준다)
@@ -492,6 +510,7 @@ final class Engine {
         }
         if mode != pane.mode { log("panel \(pane.mode) -> \(mode) x=\(Int(pane.frame.minX))"); pane.mode = mode; changed = true }
         if layout.toolbar != pane.toolbar { pane.toolbar = layout.toolbar; changed = true }
+        if let f = layout.filePill, f != pane.filePill { log("file pill \(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height))"); pane.filePill = f; changed = true }
         if layout.floating != pane.popupOpen { log("popup \(layout.floating) x=\(Int(pane.frame.minX))"); pane.popupOpen = layout.floating; changed = true }
         pane.expandElement = mode == .minimized ? layout.expandButton : nil
         pane.minimizeElement = layout.minimizeButton
@@ -624,7 +643,9 @@ final class Engine {
         let rightHard = isHardEdge(f.maxX + 2, p.y)
         // 페이지 버튼이 왼쪽 아래 끝 가까이에 있다. 버튼을 누르러 가다 끝에 닿아 패널이 펼쳐지지 않게,
         // 버튼이 있는 아래쪽 띠에서는 왼쪽 끝 반응을 끈다.
-        let inButtonBand = protectButtonBand && p.y >= f.maxY - Engine.buttonBand
+        let inButtonBand = protectButtonBand && (buttonBandAtTop
+            ? (p.y >= f.minY + PageChipPlace.topLeftY - 16 && p.y <= f.minY + PageChipPlace.topLeftY + ChipModel.height + 16)
+            : p.y >= f.maxY - Engine.buttonBand)
         // 미리 누르기 ("바로"일 때만): 마우스가 화면 왼쪽 끝으로 빠르게 달려가고 있으면 닿기 직전에 누른다.
         // Figma가 패널을 그리는 데 0.25~0.35초 걸려서, 닿은 뒤에 누르면 한 박자 늦게 느껴진다.
         let vx: CGFloat = pane.lastX.map { now > pane.lastT ? ($0 - p.x) / CGFloat(now - pane.lastT) : 0 } ?? 0   // 왼쪽으로 가는 속도 (pt/초)
@@ -811,6 +832,7 @@ final class Engine {
     private var lastWatch: TimeInterval = 0
     var coverPanel = false                      // 이동할 때 패널을 가린다 (화면 기록 권한 필요)
     var protectButtonBand = true                // 페이지 버튼이 보일 때 그 높이에서는 화면 끝 반응을 끈다
+    var buttonBandAtTop = false                 // 페이지 버튼이 왼쪽 위(파일 이름 아래)에 있으면 그 높이를 지킨다
     static let buttonBand: CGFloat = 76         // 아래 여백 12 + 버튼 48 + 위쪽 여유 16
     private var coverPending = false
     private var lastURLCheck: TimeInterval = 0
@@ -1501,6 +1523,14 @@ struct VisualEffect: NSViewRepresentable {
     func updateNSView(_ v: NSVisualEffectView, context: Context) {}
 }
 
+/// 페이지 버튼 자리 (설정 > 페이지 이동 > 위치)
+enum PageChipPlace: Int {
+    case bottomLeft = 0     // 왼쪽 아래, 도구 막대와 같은 줄 (기본)
+    case topLeft = 1        // 왼쪽 위 파일 이름 칸 바로 오른쪽
+    case topCenter = 2      // 위쪽 줄 가운데
+    static let topLeftY: CGFloat = 8 + 48 + 8   // 위 여백 + 파일 이름 칸 높이 + 간격
+}
+
 /// 왼쪽 아래에 떠 있는 버튼: ‹ 지금 페이지 ›
 /// Figma 아래쪽 도구 막대와 높이(48)·모양을 맞추고, 폭은 도구 막대까지 남은 공간에 맞춰 줄어든다.
 final class ChipModel: ObservableObject {
@@ -1509,6 +1539,7 @@ final class ChipModel: ObservableObject {
     @Published var canForward = false
     @Published var busy = false
     @Published var width: CGFloat = ChipModel.maxWidth
+    @Published var rowHeight: CGFloat = ChipModel.height   // 위쪽 자리에서는 Figma 파일 이름 칸 높이에 맞춘다
     @Published var style = FigmaStyle(dark: true)
     @Published var windowClip: CGRect?   // 버튼 창 안에서 본 Figma 창 영역
     @Published var hovering = false      // 마우스가 올라가 있는지
@@ -1612,7 +1643,7 @@ struct ChipView: View {
         .animation(.easeOut(duration: 0.18), value: showArrows)
         .animation(.easeInOut(duration: 0.2), value: model.title)
         .padding(8)
-        .frame(width: model.width, height: ChipModel.height)
+        .frame(width: model.width, height: model.rowHeight)
         .contentShape(Rectangle())
         .onHover { model.hovering = $0 }  // 버튼 전체(여백 포함)에 올라갔을 때
         .modifier(Elevated(style: st))
@@ -1701,7 +1732,14 @@ final class HotKeys {
 final class PageNavigator: NSObject, NSWindowDelegate {
     let engine: Engine
     let hotKeys = HotKeys()
-    var showChip = true { didSet { engine.protectButtonBand = showChip; sync() } }
+    var showChip = true { didSet { applyChipPlace() } }
+    var chipPlace: PageChipPlace = .bottomLeft { didSet { applyChipPlace() } }
+    /// 버튼이 화면 왼쪽 끝 가까이에 있을 때만, 버튼을 누르러 가다 패널이 펼쳐지지 않게 그 높이의 끝 반응을 끈다.
+    private func applyChipPlace() {
+        engine.protectButtonBand = showChip && chipPlace == .bottomLeft   // 위쪽 자리는 화면 끝에서 떨어져 있다
+        engine.buttonBandAtTop = false
+        sync()
+    }
     var shortcutsOn = true { didSet { sync() } }
 
     private var palette: FloatingPanel?
@@ -1872,19 +1910,42 @@ final class PageNavigator: NSObject, NSWindowDelegate {
             let agent = AgentState(figmaAgents: p.agents, hookWorking: hook.working && (p.agents > 0 || !anyFigmaAgent),
                                    tool: hook.tool)
             if chip.model.agent != agent { chip.model.agent = agent }
-            // Figma 아래쪽 도구 막대와 같은 줄·같은 높이에 둔다. 도구 막대를 못 읽으면 화면 아래 12pt.
-            // 폭은 도구 막대 왼쪽 끝까지 남은 공간에 맞춰 줄이고, 아주 좁으면 숨긴다.
-            let left = p.frame.minX + 12
-            // 도구 막대는 화면 가운데·아래 12pt에 놓인다. 폭만 가끔 읽은 값을 쓰고 위치는 화면 크기에서 바로 계산해서,
-            // 분할 경계를 움직이는 동안에도 늦지 않게 따라간다.
-            let barWidth = p.toolbar?.width ?? 586
-            let bar = CGRect(x: p.frame.midX - barWidth / 2, y: p.frame.maxY - 12 - ChipModel.height,
-                             width: barWidth, height: ChipModel.height)
-            // 공간이 다시 생기면 다음 확인(0.25초)에서 저절로 다시 나타난다.
-            guard let width = ChipModel.width(for: bar.minX - 8 - left) else { seen.remove(id); continue }
-            if chip.model.width != width { chip.model.width = width }
+            // 자리는 설정(페이지 버튼 위치)에 따른다.
+            //  왼쪽 아래: Figma 아래쪽 도구 막대와 같은 줄·같은 높이. 폭은 도구 막대 왼쪽 끝까지 남은 공간에 맞춰 줄이고, 아주 좁으면 숨긴다.
+            //  왼쪽 위: 왼쪽 위 파일 이름 칸 바로 아래.   가운데 위: 위쪽 줄 가운데 (파일 이름 칸과 공유 칸 사이).
+            let axFrame: CGRect
+            switch chipPlace {
+            case .bottomLeft:
+                let left = p.frame.minX + 12
+                // 도구 막대는 화면 가운데·아래 12pt에 놓인다. 폭만 가끔 읽은 값을 쓰고 위치는 화면 크기에서 바로 계산해서,
+                // 분할 경계를 움직이는 동안에도 늦지 않게 따라간다.
+                let barWidth = p.toolbar?.width ?? 586
+                let bar = CGRect(x: p.frame.midX - barWidth / 2, y: p.frame.maxY - 12 - ChipModel.height,
+                                 width: barWidth, height: ChipModel.height)
+                // 공간이 다시 생기면 다음 확인(0.25초)에서 저절로 다시 나타난다.
+                guard let width = ChipModel.width(for: bar.minX - 8 - left) else { seen.remove(id); continue }
+                if chip.model.width != width { chip.model.width = width }
+                if chip.model.rowHeight != ChipModel.height { chip.model.rowHeight = ChipModel.height }
+                axFrame = CGRect(x: left, y: bar.midY - ChipModel.height / 2, width: width, height: ChipModel.height)
+            case .topLeft:
+                // 왼쪽 위 파일 이름 칸 바로 오른쪽, 같은 줄·같은 높이. 폭은 원래대로(최대 280, 가운데를 넘지 않게).
+                let pill = p.filePill
+                let x = (pill?.maxX ?? p.frame.minX + 12 + 200) + 8
+                guard let width = ChipModel.width(for: min(ChipModel.maxWidth, p.frame.midX - x)) else { seen.remove(id); continue }
+                if chip.model.width != width { chip.model.width = width }
+                let hgt = pill?.height ?? ChipModel.height
+                if chip.model.rowHeight != hgt { chip.model.rowHeight = hgt }
+                axFrame = CGRect(x: x, y: pill?.minY ?? p.frame.minY + 8, width: width, height: hgt)
+            case .topCenter:
+                // 위쪽 줄의 왼쪽 파일 이름 칸·오른쪽 공유 칸(각 약 260pt)과 겹치지 않는 폭
+                guard let width = ChipModel.width(for: min(ChipModel.maxWidth, p.frame.width - 2 * 272)) else { seen.remove(id); continue }
+                if chip.model.width != width { chip.model.width = width }
+                // 위쪽 줄의 파일 이름 칸과 같은 높이·같은 줄
+                let hgt = p.filePill?.height ?? ChipModel.height
+                if chip.model.rowHeight != hgt { chip.model.rowHeight = hgt }
+                axFrame = CGRect(x: p.frame.midX - width / 2, y: p.filePill?.minY ?? p.frame.minY + 8, width: width, height: hgt)
+            }
             if chip.model.style != style { chip.model.style = style }
-            let axFrame = CGRect(x: left, y: bar.midY - ChipModel.height / 2, width: width, height: ChipModel.height)
             let panelAX = axFrame.insetBy(dx: -FigmaStyle.shadowMargin, dy: -FigmaStyle.shadowMargin)
             let clip = engine.windowFrame.map { $0.offsetBy(dx: -panelAX.minX, dy: -panelAX.minY) }
             if chip.model.windowClip != clip { chip.model.windowClip = clip }
@@ -2021,6 +2082,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         engine.hardDwell = max(0, defaults.double(forKey: "hardDwell"))
         engine.softDwell = max(0, defaults.double(forKey: "softDwell"))
         pages.showChip = defaults.bool(forKey: "showPageChip")
+        pages.chipPlace = PageChipPlace(rawValue: defaults.integer(forKey: "pageChipPlace")) ?? .bottomLeft
         pages.shortcutsOn = defaults.bool(forKey: "pageShortcuts")
 
         // 1.5.0에서 바뀐 아이콘: 골라 둔 사람은 새 아이콘으로 이어 준다
@@ -2274,6 +2336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         m.rightEdge = engine.rightEdge
         m.minimizeByDefault = engine.minimizeByDefault
         m.showChip = pages.showChip
+        m.chipPlace = pages.chipPlace.rawValue
         m.shortcutsOn = pages.shortcutsOn
         m.coverPanel = engine.coverPanel
         m.coverNeedsPermission = engine.coverPanel && !PanelCover.hasPermission
@@ -2314,10 +2377,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         a.toggleRightEdge = { [weak self] in self?.toggleRightEdge() }
         a.toggleMinimize = { [weak self] in self?.toggleMinimizeByDefault() }
         a.toggleChip = { [weak self] in self?.togglePageChip() }
+        a.setChipPlace = { [weak self] i in
+            guard let self, let place = PageChipPlace(rawValue: i) else { return }
+            self.pages.chipPlace = place
+            self.defaults.set(i, forKey: "pageChipPlace")
+            self.syncMenuModel()
+        }
         a.toggleShortcuts = { [weak self] in self?.togglePageShortcuts() }
         a.toggleCover = { [weak self] in self?.toggleCover() }
         a.toggleWorkLog = { [weak self] in self?.toggleWorkLog() }
         a.toggleLogin = { [weak self] in self?.toggleLogin() }
+        a.setLanguage = { lang in
+            guard lang != appLanguage else { return }
+            UserDefaults.standard.set(lang, forKey: "appLanguage")
+            // 언어는 시작할 때 정해지므로, 이 앱이 끝나면 곧바로 다시 연다
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/bin/sh")
+            p.arguments = ["-c", "while kill -0 \"$1\" 2>/dev/null; do sleep 0.1; done; open \"$2\"", "sh",
+                           String(ProcessInfo.processInfo.processIdentifier), Bundle.main.bundleURL.path]
+            try? p.run()
+            NSApp.terminate(nil)
+        }
         a.connectClaude = closing { [weak self] in self?.connectClaude() }
         a.showGuide = closing { [weak self] in self?.showGuide() }
         a.showLog = closing { [weak self] in self?.showLog() }

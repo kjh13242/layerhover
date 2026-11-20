@@ -185,6 +185,60 @@ struct SpeedPreview: View {
     }
 }
 
+/// 페이지 버튼 위치: 작은 Figma 화면 위의 세 자리 중 하나를 직접 누른다.
+/// 고른 자리에는 페이지 버튼이 놓이고, 나머지는 점선 빈자리로 보인다. (Figma의 위쪽 파일 이름·공유 칸, 아래 도구 막대는 회색으로)
+struct ChipPlacePicker: View {
+    let selection: Int
+    let enabled: Bool
+    let action: (Int) -> Void
+    @State private var hover: Int?
+    var body: some View {
+        GeometryReader { g in
+            let w = g.size.width, h = g.size.height
+            ZStack(alignment: .topLeading) {
+                // Figma가 원래 띄우는 것: 왼쪽 위 파일 이름, 오른쪽 위 공유, 아래 가운데 도구 막대
+                RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1)).frame(width: 72, height: 20).offset(x: 8, y: 8)
+                RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1)).frame(width: 56, height: 20).offset(x: w - 64, y: 8)
+                RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1)).frame(width: 104, height: 20).offset(x: w / 2 - 52, y: h - 28)
+                slot(0, x: 8, y: h - 28)
+                slot(1, x: 88, y: 8)
+                slot(2, x: w / 2 - 44, y: 8)
+            }
+        }
+        .frame(height: 112)
+        .background(GlassFill(radius: 8, lift: 0.6))
+        .padding(.vertical, 12)
+        .opacity(enabled ? 1 : 0.45)
+        .allowsHitTesting(enabled)
+    }
+    private func slot(_ i: Int, x: CGFloat, y: CGFloat) -> some View {
+        let on = selection == i
+        return Button { action(i) } label: {
+            HStack(spacing: 4) {
+                LHIcon(symbol: "doc", size: 12)
+                Text(L("페이지", "Page")).font(.system(size: 10, weight: .medium))
+                Spacer(minLength: 0)
+                Text("‹ ›").font(.system(size: 10, weight: .medium))
+            }
+            .foregroundStyle(on ? Color.primary : Color.secondary.opacity(hover == i ? 0.9 : 0.5))
+            .padding(.horizontal, 6)
+            .frame(width: 88, height: 20)
+            .background { if on { GlassFill(radius: 5, tint: LH.accent) } else if hover == i { GlassFill(radius: 5) } }
+            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(on ? LH.accent.opacity(0.6) : Color.primary.opacity(0.25),
+                                                                    style: StrokeStyle(lineWidth: 1, dash: on ? [] : [3, 2])))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 ? i : (hover == i ? nil : hover) }
+        .offset(x: x, y: y)
+        .help([L("왼쪽 아래 · 도구 막대와 같은 줄", "Bottom left, beside the toolbar"),
+               L("왼쪽 위 · 파일 이름 오른쪽", "Top left, next to the file name"),
+               L("가운데 위", "Top center")][i])
+        .accessibilityLabel([L("왼쪽 아래", "Bottom left"), L("왼쪽 위", "Top left"), L("가운데 위", "Top center")][i])
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
 /// 펼치는 곳: 작은 화면의 끝을 직접 눌러 고른다. 켜진 끝은 빛나고, 그 끝에서 나오는 패널이 옅게 보인다.
 struct EdgePicker: View {
     let right: Bool
@@ -385,6 +439,7 @@ struct SettingsView: View {
                            note: L("Figma 왼쪽 아래에 지금 페이지 이름과 ‹ › 버튼을 띄워요", "Shows the current page and ‹ › at Figma's bottom left")) {
                     SettingSwitch(isOn: model.showChip, label: L("페이지 버튼", "Page button"), action: model.actions.toggleChip)
                 }
+                ChipPlacePicker(selection: model.chipPlace, enabled: model.showChip, action: model.actions.setChipPlace)
                 CardDivider()
                 SettingRow(title: L("단축키", "Keyboard shortcuts"),
                            note: L("⌃⌥P 로 페이지를 찾고, ⌃⌥← → 로 이전·다음 페이지를 오가요", "⌃⌥P finds a page; ⌃⌥← → go back and forward")) {
@@ -410,6 +465,14 @@ struct SettingsView: View {
                 SettingRow(title: L("로그인할 때 열기", "Open at login"),
                            note: L("Mac에 로그인하면 메뉴 막대에 자동으로 떠요", "Starts in the menu bar when you log in")) {
                     SettingSwitch(isOn: model.launchAtLogin, label: L("로그인할 때 열기", "Open at login"), action: model.actions.toggleLogin)
+                }
+            }
+            SettingsCard(title: L("언어", "Language")) {
+                SettingRow(title: L("화면 언어", "Interface language"),
+                           note: L("바꾸면 Layerhover가 다시 시작해요", "Layerhover restarts to apply it")) {
+                    SettingSegments(options: [L("자동", "Auto"), "한국어", "English"],
+                                    selection: ["auto", "ko", "en"].firstIndex(of: appLanguage),
+                                    label: L("화면 언어", "Interface language")) { i in model.actions.setLanguage(["auto", "ko", "en"][i]) }
                 }
             }
             SettingsCard(title: L("작업 기록", "Activity")) {
