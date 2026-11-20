@@ -10,7 +10,8 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import vm from 'node:vm';
 
 const ROOT = new URL('../..', import.meta.url).pathname;
-const IDS = ['buddha', 'wave', 'surf', 'fishing', 'tree', 'magnolia', 'lotus', 'pagoda', 'incense', 'crane', 'cat', 'leaf', 'furin', 'peek'];
+const IDS = ['buddha', 'wave', 'surf', 'fishing', 'tree', 'magnolia', 'lotus', 'pagoda', 'incense', 'crane', 'cat', 'leaf', 'furin', 'peek',
+             'wx-clear', 'wx-partly', 'wx-cloudy', 'wx-rain', 'wx-snow', 'wx-storm', 'wx-fog', 'wx-night'];
 const OUT = ROOT + 'docs/assets/marks-svg/';
 mkdirSync(OUT, { recursive: true });
 const lib = readFileSync(ROOT + 'tools/motion/lib.js', 'utf8');

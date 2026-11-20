@@ -345,8 +345,17 @@ img{display:block;max-width:100%}
 .edge{position:absolute;top:0;bottom:0;width:3px;z-index:5;pointer-events:none;background:var(--accent);opacity:0;transition:opacity .25s,box-shadow .25s}
 .edge.l{left:0}.edge.r{right:0}
 .edge.near{opacity:.45}
-.etip{position:absolute;left:14px;top:50%;z-index:3;display:flex;align-items:center;font:500 11px var(--mono);letter-spacing:.03em;color:#fff;background:var(--accent);padding:6px 10px;border-radius:7px;box-shadow:0 6px 18px -6px rgba(29,77,255,.8);pointer-events:none;transform:translateY(-50%);transition:opacity .25s;animation:nudge 2.4s var(--ease) infinite}
-@keyframes nudge{0%,55%,100%{transform:translateY(-50%)}25%{transform:translate(-6px,-50%)}}
+/* edge hint: a quiet dark-glass coach mark (Figma-like), with a tiny loop of what to do — the pointer slides to the edge and the edge lights up */
+.etip{position:absolute;left:16px;top:50%;z-index:3;display:flex;align-items:center;gap:8px;padding:8px 12px 8px 8px;border-radius:12px;
+  background:rgba(28,28,30,.72);-webkit-backdrop-filter:blur(12px) saturate(1.4);backdrop-filter:blur(12px) saturate(1.4);
+  border:1px solid rgba(255,255,255,.1);box-shadow:0 12px 32px -12px rgba(0,0,0,.7);
+  font:500 12px/16px var(--ui);color:rgba(255,255,255,.88);pointer-events:none;transform:translateY(-50%);transition:opacity .25s}
+.etip .eg{position:relative;width:24px;height:16px;flex:none}
+.etip .eg i{position:absolute;left:0;top:1px;width:2px;height:14px;border-radius:1px;background:rgba(255,255,255,.25);animation:egbar 2.4s infinite}
+.etip .eg svg{position:absolute;left:12px;top:2px;width:10px;height:12px;animation:egcur 2.4s var(--ease) infinite}
+@keyframes egcur{0%,15%{transform:translateX(0)}45%,72%{transform:translateX(-9px)}100%{transform:translateX(0)}}
+@keyframes egbar{0%,42%,100%{background:rgba(255,255,255,.25);box-shadow:none}50%,72%{background:var(--accent);box-shadow:0 0 8px 1px rgba(29,77,255,.85)}}
+@media (prefers-reduced-motion:reduce){.etip .eg i,.etip .eg svg{animation:none}}
 .fig.l-open .etip,.fig:not(.m-edge) .etip{opacity:0}
 .fig.m-edge .edge.l{opacity:.35}
 .fig.m-edge .edge.l.near{opacity:.6}
@@ -654,6 +663,60 @@ footer{border-top-color:var(--glass-line)}
 @media (max-width:900px){.ic-t:nth-child(7n){border-right:1px solid var(--glass-line)}.ic-t:nth-child(4n){border-right:0}.ic-t:nth-last-child(-n+7){border-bottom:1px solid var(--glass-line)}.perm div{padding:24px!important;border-bottom:1px solid var(--glass-edge)}}
 @media (max-width:640px){.ic-t:nth-child(4n){border-right:1px solid var(--glass-line)}.ic-t:nth-child(2n){border-right:0}.cmd{border-radius:20px}}
 @media (prefers-reduced-motion:reduce){.aura i{animation:none}}
+
+/* weather sheet: same big tiles as the icons, set apart as its own sheet with a sky tint */
+.wxs{margin-top:var(--sp-7)}
+.wxs-h{display:flex;align-items:center;gap:var(--sp-2);margin-bottom:var(--sp-4);font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-3)}
+.wxs-h b{color:var(--ink);font-weight:600}
+.wxs-h svg{color:var(--accent)}
+.icons.wxg{grid-template-columns:repeat(8,1fr);background:linear-gradient(180deg,rgba(214,228,255,.55),rgba(232,244,255,.45))}
+.wxg .ic-t{border-bottom:0;border-right:1px solid var(--glass-line)}
+.wxg .ic-t:nth-child(8n){border-right:0}
+.wxg .ic-t .mk{--s:64px}
+@media (max-width:900px){.icons.wxg{grid-template-columns:repeat(4,1fr)}.wxg .ic-t:nth-child(4n){border-right:0}.wxg .ic-t:nth-child(-n+4){border-bottom:1px solid var(--glass-line)}}
+@media (max-width:640px){.wxg .ic-t .mk{--s:48px}.wxg .ic-t:nth-child(4n+2){border-right:1px solid var(--glass-line)}}
+
+/* feature sections: text + one visual, alternating sides */
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-8);align-items:center}
+.fgrid.rev .ftxt{order:2}
+.fpts{list-style:none;margin-top:var(--sp-7);display:grid;gap:var(--sp-4)}
+.fpts li{display:flex;align-items:center;gap:var(--sp-4);font-size:var(--fs-b);line-height:var(--lh-b);color:var(--ink-2)}
+.fpts em{font-style:normal;color:var(--ink-3);font-size:var(--fs-s);margin-left:var(--sp-2)}
+.fpts kbd{flex:none;min-width:56px;height:32px;padding:0 var(--sp-2);display:inline-grid;place-items:center;border-radius:8px;font:500 var(--fs-s)/var(--lh-s) var(--mono);color:var(--ink);
+  background:var(--glass-hi);border:1px solid var(--glass-edge);box-shadow:0 0 0 1px var(--glass-line)}
+.fpts kbd.warm{color:#C2570C}
+.fpts kbd.ring-k::before{content:"";width:16px;height:16px;border-radius:5px;border:2px solid var(--ink-3);border-left-color:transparent;border-bottom-color:transparent;transform:rotate(45deg)}
+.fvis{min-width:0}
+/* mini screen: edge reveal loop */
+.mini{position:relative;aspect-ratio:16/10;border-radius:16px;overflow:hidden;background:#1E1E1E;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 32px 64px -32px rgba(14,15,18,.6);
+  background-image:radial-gradient(circle at 1px 1px,#2A2A2A 1px,transparent 0);background-size:16px 16px}
+.mini-frame{position:absolute;left:34%;top:24%;width:44%;height:52%;background:#fff;border-radius:4px;box-shadow:0 0 0 1.5px var(--f-blue)}
+.mini-panel{position:absolute;left:12px;top:12px;bottom:12px;width:30%;border-radius:10px;background:#2C2C2C;border:1px solid #3D3D3D;padding:16px 12px;display:grid;align-content:start;gap:12px;
+  transform:translateX(-110%);animation:mp 5s var(--ease) infinite}
+.mini-panel i{height:4px;border-radius:2px;background:#555}.mini-panel i:nth-child(2){width:60%;background:var(--f-blue)}.mini-panel i:nth-child(4){width:70%}
+.mini-edge{position:absolute;left:0;top:8%;bottom:8%;width:3px;border-radius:2px;background:var(--accent);opacity:0;animation:me 5s infinite}
+.mini .cur{position:absolute;width:16px;height:20px;left:62%;top:52%;animation:mc 5s var(--ease) infinite}
+@keyframes mc{0%,8%{left:62%;top:52%}28%,34%{left:1%;top:46%}48%{left:14%;top:40%}62%{left:16%;top:56%}74%,100%{left:62%;top:52%}}
+@keyframes mp{0%,30%{transform:translateX(-110%)}36%,72%{transform:none}82%,100%{transform:translateX(-110%)}}
+@keyframes me{0%,26%{opacity:0}29%,34%{opacity:1;box-shadow:0 0 16px 4px rgba(29,77,255,.6)}40%,100%{opacity:0}}
+/* page jump: real renders of the finder and chip */
+.dark-shot{display:grid;place-items:center}
+.pal-img{width:64%;filter:drop-shadow(0 24px 40px rgba(0,0,0,.5))}
+.chip-img{position:absolute;left:16px;bottom:16px;height:36px;width:auto}
+/* activity card */
+.act-mini{border-radius:20px;padding:var(--sp-5);background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow)}
+.am-top{display:flex;align-items:center;gap:var(--sp-4)}
+.am-ring{width:50px;height:50px;flex:none}
+.am-ring path{fill:none;stroke-width:2.5;stroke-linecap:round}.am-ring .trk{stroke:rgba(14,15,18,.08)}.am-ring .day{stroke:#E8851A;stroke-dasharray:44 100}
+.am-top b{display:block;font-size:var(--fs-h);line-height:var(--lh-h);font-weight:600}
+.am-top small{display:block;font-size:var(--fs-s);line-height:var(--lh-s);color:#C2570C}
+.am-rest{margin-left:auto;height:32px;padding:0 var(--sp-4);display:inline-grid;place-items:center;border-radius:8px;font-size:var(--fs-s);font-weight:600;background:var(--glass-hi);box-shadow:0 0 0 1px var(--glass-line)}
+.am-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--sp-3);align-items:end;height:128px;margin-top:var(--sp-6)}
+.am-bars i{display:block;height:calc(var(--h) * 100%);border-radius:6px 6px 2px 2px;background:rgba(29,77,255,.22)}
+.am-bars i.t{background:var(--accent)}
+.am-days{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--sp-3);margin-top:var(--sp-2);text-align:center;font-size:var(--fs-m);line-height:var(--lh-m);color:var(--ink-3)}
+@media (max-width:900px){.fgrid{grid-template-columns:1fr;gap:var(--sp-7)}.fgrid.rev .ftxt{order:0}}
+@media (prefers-reduced-motion:reduce){.mini-panel{animation:none;transform:none}.mini .cur,.mini-edge{animation:none}}
 </style>
 </head>
 <body>
@@ -671,7 +734,7 @@ footer{border-top-color:var(--glass-line)}
   <div class="wrap">
     <a class="brand" href="#top"><img src="assets/app-icon.png" alt="">Layerhover</a>
     <nav aria-label="섹션">
-      <a href="#demo">데모</a><a href="#icons">아이콘</a><a href="#privacy">권한</a><a href="#install">설치</a>
+      <a href="#reveal">패널 꺼내기</a><a href="#jump">페이지</a><a href="#icons">아이콘</a><a href="#activity">작업 기록</a><a href="#install">설치</a>
     </nav>
     <a class="btn btn-o" href="https://github.com/kjh13242/layerhover/releases">받기</a>
   </div>
@@ -782,7 +845,7 @@ footer{border-top-color:var(--glass-line)}
               <div class="rp-sec"><h5>Export <span>+</span></h5></div>
             </aside>
 
-            <div class="etip" aria-hidden="true">← 끝에 대 보세요</div><div class="edge l" id="edgeL"></div><div class="edge r" id="edgeR"></div>
+            <div class="etip" aria-hidden="true"><span class="eg"><i></i><svg viewBox="0 0 10 12"><path d="M1 .8v9.6l2.5-2.3 1.7 3.6 1.6-.7-1.7-3.5H8.6z" fill="#fff" stroke="#111" stroke-width=".7" stroke-linejoin="round"/></svg></span>끝에 대 보세요</div><div class="edge l" id="edgeL"></div><div class="edge r" id="edgeR"></div>
 
             <!-- ⌃⌥P palette -->
             <div class="pal" id="pal" role="dialog" aria-label="페이지로 이동">
@@ -821,24 +884,96 @@ footer{border-top-color:var(--glass-line)}
   </div>
 </section>
 
+<!-- FEATURES: one section per core feature -->
+<section class="sec fsec" id="reveal">
+  <div class="wrap fgrid">
+    <div class="ftxt">
+      <div class="label mono"><b>02</b> 패널 꺼내기</div>
+      <h2 class="h2">화면 끝에 대면 나오고,<br><span>벗어나면 접혀요.</span></h2>
+      <ul class="fpts">
+        <li><kbd>←</kbd><span>왼쪽 끝 · 레이어 패널</span></li>
+        <li><kbd>→</kbd><span>오른쪽 끝 · 속성 패널 <em>설정에서 켜기</em></span></li>
+        <li><kbd>⇧⌘\</kbd><span>새 파일은 패널을 접은 채 시작</span></li>
+      </ul>
+    </div>
+    <div class="fvis">
+      <div class="mini" aria-hidden="true">
+        <div class="mini-edge"></div>
+        <div class="mini-panel"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="mini-frame"></div>
+        <svg class="cur" viewBox="0 0 10 12" aria-hidden="true"><path d="M1 .8v9.6l2.5-2.3 1.7 3.6 1.6-.7-1.7-3.5H8.6z" fill="#fff" stroke="#111" stroke-width=".7" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec fsec" id="jump">
+  <div class="wrap fgrid rev">
+    <div class="ftxt">
+      <div class="label mono"><b>03</b> Figma 페이지로</div>
+      <h2 class="h2">다른 창에서 바로,<br><span>원하는 페이지로.</span></h2>
+      <ul class="fpts">
+        <li><kbd>⌃⌥P</kbd><span>이름 몇 글자로 찾기</span></li>
+        <li><kbd>⌃⌥← →</kbd><span>이전 · 다음 페이지</span></li>
+        <li><kbd>‹ ›</kbd><span>Figma 왼쪽 아래 페이지 버튼</span></li>
+      </ul>
+    </div>
+    <div class="fvis">
+      <div class="mini dark-shot" aria-hidden="true">
+        <img class="pal-img" src="assets/palette-dark.png" alt="">
+        <img class="chip-img" src="assets/chip-dark-0.png" alt="">
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ICONS -->
 <section class="sec" id="icons">
   <div class="wrap">
     <div class="sec-head">
       <div>
-        <div class="label mono"><b>02</b> 메뉴 막대 아이콘</div>
+        <div class="label mono"><b>04</b> 메뉴 막대 아이콘</div>
         <h2 class="h2">아이콘 14개,<br><span>또는 지금 날씨.</span></h2>
       </div>
     </div>
     <div class="icons" id="iconGrid"></div>
-    <div class="wx" id="wx"><span class="lbl">날씨</span><span class="note" hidden></span></div>
+    <!-- 날씨: 손그림 아이콘과 성격이 달라(지금 위치에 따라 바뀜) 따로 한 판으로 — 같은 크기로 크게, 옅은 하늘빛 유리로 구분 -->
+    <div class="wxs">
+      <p class="wxs-h"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 14.5s4.5-4.2 4.5-7.8a4.5 4.5 0 0 0-9 0c0 3.6 4.5 7.8 4.5 7.8Z"/><circle cx="8" cy="6.7" r="1.6"/></svg><b>날씨</b><span>지금 위치에 따라 바뀌어요</span></p>
+      <div class="icons wxg" id="wx"></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec fsec" id="activity">
+  <div class="wrap fgrid rev">
+    <div class="ftxt">
+      <div class="label mono"><b>05</b> 작업 기록과 휴식</div>
+      <h2 class="h2">오늘 얼마나 했는지,<br><span>언제 쉴지.</span></h2>
+      <ul class="fpts">
+        <li><kbd class="ring-k"></kbd><span>오늘 작업이 시계처럼 차올라요</span></li>
+        <li><kbd class="warm">50′</kbd><span>오래 이어지면 쉬자고 알려요</span></li>
+        <li><kbd><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg></kbd><span>파일별 기록은 이 Mac에만</span></li>
+      </ul>
+    </div>
+    <div class="fvis">
+      <div class="act-mini" aria-hidden="true">
+        <div class="am-top">
+          <svg class="am-ring" viewBox="0 0 50 50"><path class="trk" pathLength="100" d="M25 2H36A12 12 0 0 1 48 14V36A12 12 0 0 1 36 48H14A12 12 0 0 1 2 36V14A12 12 0 0 1 14 2Z"/><path class="day" pathLength="100" d="M25 2H36A12 12 0 0 1 48 14V36A12 12 0 0 1 36 48H14A12 12 0 0 1 2 36V14A12 12 0 0 1 14 2Z"/></svg>
+          <div><b>오늘 2시간 40분</b><small>52분째 집중 중</small></div>
+          <span class="am-rest">휴식</span>
+        </div>
+        <div class="am-bars"><i style="--h:.62"></i><i style="--h:.46"></i><i class="t" style="--h:.92"></i><i style="--h:.7"></i><i style="--h:.36"></i><i style="--h:.08"></i><i style="--h:.04"></i></div>
+        <div class="am-days"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span></div>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- PRIVACY -->
 <section class="sec" id="privacy">
   <div class="wrap">
-    <div class="label mono"><b>03</b> 권한과 개인정보</div>
+    <div class="label mono"><b>06</b> 권한과 개인정보</div>
     <h2 class="h2">필요한 만큼만 묻고,<br><span>이 Mac 밖으로는 거의 아무것도.</span></h2>
     <div class="perm">
       <div><span class="when a">항상</span><h3>손쉬운 사용</h3><p>Figma 버튼을 대신 눌러요. 화면은 읽지 않아요.</p></div>
@@ -852,7 +987,7 @@ footer{border-top-color:var(--glass-line)}
 <section class="sec" id="install">
   <div class="wrap inst">
     <div>
-      <div class="label mono"><b>04</b> 설치</div>
+      <div class="label mono"><b>07</b> 설치</div>
       <h2 class="h2">설치는 한 줄,<br><span>업데이트는 알아서.</span></h2>
       <div class="cmd"><code id="brew"><span>$ </span>brew install --cask kjh13242/layerhover/layerhover</code><button class="copy" id="copy">복사</button></div>
       <p class="or">또는 <a href="https://github.com/kjh13242/layerhover/releases">GitHub Releases에서 Layerhover.zip 받기</a> → 응용 프로그램 폴더로 옮기기.</p>
@@ -883,7 +1018,7 @@ const $ = (s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySele
 const MARKS=[['buddha',48,'반가사유상','Bodhisattva'],['wave',64,'파도','Waves'],['surf',48,'서핑','Surfing'],['fishing',64,'낚시','Fishing'],['tree',48,'크리스마스 나무','Xmas tree'],['magnolia',56,'목련','Magnolia'],['lotus',56,'연꽃','Lotus'],['pagoda',64,'석탑','Stone pagoda'],['incense',64,'향','Incense'],['crane',64,'학','Crane'],['cat',48,'고양이와 나비','Cat'],['leaf',56,'나뭇잎','Leaf'],['furin',56,'풍경','Wind chime'],['peek',48,'옆에서 나오는 패널','Side peek']];
 const WX=[['wx-clear','맑음'],['wx-partly','구름 조금'],['wx-cloudy','흐림'],['wx-rain','비'],['wx-snow','눈'],['wx-storm','뇌우'],['wx-fog','안개'],['wx-night','밤']];
 const FR=Object.fromEntries(MARKS.map(m=>[m[0],m[1]])); WX.forEach(w=>FR[w[0]]=48);
-const VEC=new Set(['buddha','wave','surf','fishing','tree','magnolia','lotus','pagoda','incense','crane','cat','leaf','furin','peek']);
+const VEC=new Set(['buddha','wave','surf','fishing','tree','magnolia','lotus','pagoda','incense','crane','cat','leaf','furin','peek','wx-clear','wx-partly','wx-cloudy','wx-rain','wx-snow','wx-storm','wx-fog','wx-night']);
 function paint(el,id){el.dataset.m=id;el.style.setProperty('--n',FR[id]||48);
   if(VEC.has(id)){el.classList.add('v');el.style.backgroundImage='';el.style.setProperty('--img',`url(assets/marks-svg/${id}.svg)`)}
   else{el.classList.remove('v');el.style.backgroundImage=`url(assets/marks/${id}@2x.png)`}
@@ -896,8 +1031,9 @@ const grid=$('#iconGrid');
 MARKS.forEach((m,i)=>{const t=document.createElement('div');t.className='ic-t';
     const k=mark(m[0],'ink');k.style.animationDelay=(-i*0.37)+'s';t.append(k);
   const n=document.createElement('span');n.className='nm';n.textContent=m[2];t.append(n);grid.append(t)});
-const wx=$('#wx'), wxNote=wx.querySelector('.note');
-WX.forEach(w=>{const it=document.createElement('span');it.className='it';it.append(mark(w[0],'ink'));it.append(w[1]);wx.insertBefore(it,wxNote)});
+const wx=$('#wx');
+WX.forEach((w,i)=>{const t=document.createElement('div');t.className='ic-t';const k=mark(w[0],'ink');k.style.animationDelay=(-i*0.41)+'s';t.append(k);
+  const n=document.createElement('span');n.className='nm';n.textContent=w[1];t.append(n);wx.append(t)});
 
 /* ---------- nav ---------- */
 const nav=$('#nav');addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>10),{passive:true});
@@ -1208,11 +1344,20 @@ function startGhost(){
 function userTook(keep){realAt=Date.now();if(ghost.classList.contains('on')){stopGhost();clearEdges();if(!keep&&mode==='pages')closePal()}clearTimeout(resumeT);resumeT=setTimeout(startGhost,TOUCH?5000:6000)}
 
 /* real pointer */
+// 마우스가 목업 위를 지나가기만 해서는 자동 시연을 멈추지 않는다.
+// 직접 해 보려는 신호(펼치기 데모에서 창 끝 가까이 가기, 목업 안을 누르기, 단축키)가 있을 때만 넘겨받는다.
 desk.addEventListener('pointermove',e=>{
   if(e.pointerType!=='mouse')return;
-  userTook(true);
-  const b=fbody.getBoundingClientRect();edgeAt(e.clientX-b.left,e.clientY-b.top);
+  const b=fbody.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top;
+  const inBody=y>=0&&y<=b.height;
+  const nearEdge=mode==='edge'&&inBody&&(x<48||(rightOn&&x>b.width-48));
+  if(nearEdge){userTook(true);edgeAt(x,y)}                       // 끝에 닿으려 함: 방문자가 넘겨받는다
+  else if(!ghost.classList.contains('on')){                         // 이미 넘겨받은 뒤: 패널 안에 있는 동안만 계속 쥐고,
+    const inPanel=fig.classList.contains('l-open')&&x<lp.offsetWidth||fig.classList.contains('r-open')&&x>b.width-rp.offsetWidth;
+    if(inPanel)userTook(true);                                      // 그 밖에서는 잠시 뒤 자동 시연이 다시 이어진다
+    edgeAt(x,y)}
 });
+desk.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')userTook(true)});
 desk.addEventListener('pointerleave',e=>{if(e.pointerType!=='mouse')return;
   // leaving the "screen" counts as moving away
   edgeAt(9999,-9999);edgeL.classList.remove('near','hit');clearTimeout(resumeT);resumeT=setTimeout(startGhost,1800)});
