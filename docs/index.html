@@ -1360,7 +1360,9 @@ desk.addEventListener('pointermove',e=>{
 desk.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')userTook(true)});
 desk.addEventListener('pointerleave',e=>{if(e.pointerType!=='mouse')return;
   // leaving the "screen" counts as moving away
-  edgeAt(9999,-9999);edgeL.classList.remove('near','hit');clearTimeout(resumeT);resumeT=setTimeout(startGhost,1800)});
+  edgeAt(9999,-9999);edgeL.classList.remove('near','hit');
+  // 자동 시연이 이미 돌고 있으면 그대로 둔다 (처음부터 다시 시작하지 않게). 방문자가 쥐고 있었을 때만 곧 이어 간다.
+  if(!ghost.classList.contains('on')){clearTimeout(resumeT);resumeT=setTimeout(startGhost,1800)}});
 // touch: tap near an edge toggles, anything else pauses the ghost
 desk.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')return;userTook(true);
   const b=fbody.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top;
