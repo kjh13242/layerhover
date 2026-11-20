@@ -364,7 +364,9 @@ img{display:block;max-width:100%}
 
 /* page chip (Layerhover) */
 .chip{position:absolute;left:12px;bottom:12px;z-index:3;display:flex;align-items:center;gap:8px;height:40px;padding:0 8px 0 12px;border-radius:10px;background:#3A3A3A;border:1px solid #4A4A4A;box-shadow:0 8px 20px rgba(0,0,0,.4);font-size:12px;font-weight:500;transition:transform .35s var(--ease),opacity .25s}
-.fig.l-open .chip{transform:translateX(254px)}
+/* 실제 앱처럼: 레이어 패널이 나오면 페이지 버튼은 비켜 사라지고, 패널이 접히면 다시 나온다 (옆으로 밀리지 않는다) */
+.chip{transition:opacity .2s,transform .25s var(--ease)}
+.fig.l-open .chip{opacity:0;transform:translateY(4px);pointer-events:none}
 .chip .nm{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block}
 .chip .nm.bump{animation:bump .35s var(--ease)}
 @keyframes bump{from{transform:translateY(6px);opacity:0}}
@@ -571,7 +573,6 @@ footer .peekrow{display:flex;gap:8px;align-items:center}
   .p-tools{padding:5px}
   .p-tools .ib{width:28px;height:28px}
   .lp{width:216px}
-  .fig.l-open .chip{transform:none}
   .chip .nm{max-width:120px}
   .rp{width:200px}
   .dd{right:6px;left:6px;width:auto}
