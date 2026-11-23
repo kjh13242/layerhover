@@ -142,7 +142,7 @@ struct SpeedPreview: View {
     let collapse: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        TimelineView(.animation(paused: reduceMotion)) { ctx in
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { ctx in
             Canvas { g, size in
                 let dR = [0, 0.3, 0.9][reveal ?? 1], dC = [0, 0.4, 1.1][collapse ?? 1]
                 let move = 0.5, slide = 0.2, hold = 0.9, back = 0.4, rest = 0.6
@@ -197,12 +197,13 @@ struct ChipPlacePicker: View {
             let w = g.size.width, h = g.size.height
             ZStack(alignment: .topLeading) {
                 // Figma가 원래 띄우는 것: 왼쪽 위 파일 이름, 오른쪽 위 공유, 아래 가운데 도구 막대
-                RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1)).frame(width: 72, height: 20).offset(x: 8, y: 8)
+                RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1)).frame(width: 56, height: 20).offset(x: 8, y: 8)
                 RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1)).frame(width: 56, height: 20).offset(x: w - 64, y: 8)
                 RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1)).frame(width: 104, height: 20).offset(x: w / 2 - 52, y: h - 28)
                 slot(0, x: 8, y: h - 28)
-                slot(1, x: 88, y: 8)
-                slot(2, x: w / 2 - 44, y: 8)
+                // 왼쪽 위는 파일 이름 바로 오른쪽, 가운데 위는 창 가운데 — 칸 폭 76이라 둘이 겹치지 않는다 (가운데가 왼쪽 위 끝보다 오른쪽)
+                slot(1, x: 8 + 56 + 8, y: 8)
+                slot(2, x: max(w / 2 - 38, 8 + 56 + 8 + 76 + 8), y: 8)
             }
         }
         .frame(height: 112)
@@ -222,7 +223,7 @@ struct ChipPlacePicker: View {
             }
             .foregroundStyle(on ? Color.primary : Color.secondary.opacity(hover == i ? 0.9 : 0.5))
             .padding(.horizontal, 6)
-            .frame(width: 88, height: 20)
+            .frame(width: 76, height: 20)
             .background { if on { GlassFill(radius: 5, tint: LH.accent) } else if hover == i { GlassFill(radius: 5) } }
             .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(on ? LH.accent.opacity(0.6) : Color.primary.opacity(0.25),
                                                                     style: StrokeStyle(lineWidth: 1, dash: on ? [] : [3, 2])))
@@ -304,18 +305,35 @@ struct SettingsView: View {
     var close: () -> Void = {}
     /// PNG로 그릴 때(--render-menu --settings): 창 테두리 대신 신호등 단추와 단색 옆줄을 직접 그린다
     var rendering = false
+    /// 화면의 창은 옆줄과 오른쪽을 따로 그린다 (AppKit 분할 창의 두 칸)
+    enum Part { case sidebar, detail }
+    var part: Part = .detail
     /// 창이 뒤로 가면 시스템 설정처럼 고른 칸이 회색으로 바뀐다
     @Environment(\.controlActiveState) private var activeState
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-            Rectangle().fill(rendering ? SettingsStyle.separator : LH.fill(0.08)).frame(width: 1)
-            detail
+        Group {
+            if rendering {
+                HStack(spacing: 0) {
+                    sidebar
+                    Rectangle().fill(SettingsStyle.separator).frame(width: 1)
+                    detail
+                }
+                .ignoresSafeArea()
+            } else if part == .sidebar {
+                // 화면에서는 Finder와 같은 AppKit 옆줄(NSSplitViewItem sidebar) 안에 시스템 목록을 둔다:
+                // 떠 있는 유리 옆줄, 그 안의 신호등 단추, 선택 칸 모양은 macOS가 그린다.
+                List(SettingsPane.allCases, selection: Binding(get: { model.settingsPane },
+                                                               set: { if let p = $0 { model.settingsPane = p } })) { pane in
+                    Label(pane.title, systemImage: pane.symbol).tag(pane)
+                }
+                .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)   // 목록이 옆줄 바탕을 다시 칠하지 않게 (유리 옆줄이 그대로 보이게)
+            } else {
+                detail
+            }
         }
-        .frame(width: SettingsStyle.size.width, height: SettingsStyle.size.height)
-        .background { if !rendering { WindowGlass() } }
-        .ignoresSafeArea()          // 투명 제목 막대 밑까지 채운다 (안 하면 28pt 밀려 내려가 아래가 잘린다)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(hiddenShortcuts)
     }
 
@@ -336,17 +354,17 @@ struct SettingsView: View {
                 }
                 .padding(.leading, 8).frame(height: 52)
             } else {
-                Color.clear.frame(height: 52)        // 창의 신호등 단추 자리
+                Color.clear.frame(height: 44)        // 창의 신호등 단추 자리
             }
             ForEach(SettingsPane.allCases) { pane in sidebarRow(pane) }
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .frame(width: SettingsStyle.sidebarWidth)
+        .padding(.horizontal, rendering ? 12 : 8)
         .frame(maxHeight: .infinity)
-        .background {
-            if rendering { SettingsStyle.sidebar } else { LH.fill(0.03) }
-        }
+        // 옆줄은 창 안에 떠 있는 유리 판 (macOS 26의 옆줄처럼): 창 가장자리에서 8pt 띄우고, 신호등 단추도 그 안에 든다.
+        // 유리는 이 판 하나뿐이고, 오른쪽 내용과 그 안의 묶음은 유리가 아니다.
+        .modifier(FloatingSidebar(rendering: rendering))
+        .frame(width: SettingsStyle.sidebarWidth)
     }
 
     private func sidebarRow(_ pane: SettingsPane) -> some View {
@@ -378,7 +396,7 @@ struct SettingsView: View {
                 Text(model.settingsPane.title).font(.system(size: 17, weight: .bold))
                     .help(model.settingsPane.subtitle)
             }
-            .padding(.horizontal, 28).padding(.top, 32).padding(.bottom, 20)
+            .padding(.horizontal, 28).padding(.top, rendering ? 32 : 4).padding(.bottom, 20)
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) { pane }
                     .padding(.horizontal, 28).padding(.bottom, 28)
@@ -440,21 +458,6 @@ struct SettingsView: View {
                     SettingSwitch(isOn: model.showChip, label: L("페이지 버튼", "Page button"), action: model.actions.toggleChip)
                 }
                 ChipPlacePicker(selection: model.chipPlace, enabled: model.showChip, action: model.actions.setChipPlace)
-                CardDivider()
-                SettingRow(title: L("단축키", "Keyboard shortcuts"),
-                           note: L("⌃⌥P 로 페이지를 찾고, ⌃⌥← → 로 이전·다음 페이지를 오가요", "⌃⌥P finds a page; ⌃⌥← → go back and forward")) {
-                    SettingSwitch(isOn: model.shortcutsOn, label: L("단축키", "Keyboard shortcuts"), action: model.actions.toggleShortcuts)
-                }
-            }
-            SettingsCard(title: L("화면", "Display"),
-                         footnote: L("이동하기 직전의 Figma 화면을 잠깐 덮어 두는 방식이라 화면 기록 권한이 필요해요.",
-                                     "Briefly covers Figma with a snapshot taken just before the switch, so it needs Screen Recording permission.")) {
-                SettingRow(title: L("이동할 때 깜빡임 가리기", "Hide the flicker when switching"),
-                           note: L("페이지를 옮길 때 패널이 잠깐 펼쳐지는 모습을 덮어요", "Hides the panel that briefly opens while switching pages"),
-                           warning: model.coverNeedsPermission ? L("화면 기록 권한을 켠 뒤 Layerhover를 다시 열어 주세요", "Turn on Screen Recording, then reopen Layerhover") : nil) {
-                    SettingSwitch(isOn: model.coverPanel && !model.coverNeedsPermission, label: L("이동할 때 깜빡임 가리기", "Hide the flicker when switching"),
-                                  action: model.actions.toggleCover)
-                }
             }
         }
     }
@@ -552,5 +555,19 @@ private struct TintedIconLabel: LabelStyle {
     let tint: Color
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 4) { configuration.icon.foregroundStyle(tint); configuration.title }
+    }
+}
+
+/// 설정 창의 옆줄 판: 그림으로 저장할 때는 단색 옆줄, 화면에서는 창 안에 떠 있는 유리 판
+private struct FloatingSidebar: ViewModifier {
+    let rendering: Bool
+    func body(content: Content) -> some View {
+        if rendering {
+            content.background(SettingsStyle.sidebar)
+        } else {
+            content
+                .liquidGlass(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(8)
+        }
     }
 }

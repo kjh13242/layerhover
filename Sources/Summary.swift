@@ -60,18 +60,21 @@ struct SummaryView: View {
                         Text(model.rangeText).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    HStack(spacing: 8) {
-                        Button { model.shift(-1) } label: { LHIcon(symbol: "chevron.left").frame(width: 32, height: 32) }
-                            .buttonStyle(QuietButtonStyle())
+                    // 주 넘기기: 유리 알약 하나 (도구 막대처럼 내용 위에 뜨는 길잡이)
+                    HStack(spacing: 0) {
+                        Button { model.shift(-1) } label: { LHIcon(symbol: "chevron.left").frame(width: 36, height: 32) }
+                            .buttonStyle(GlassSegmentStyle())
                             .help(L("지난주", "Previous week"))
                         Button { model.weekStart = Date(); model.reload() } label: {
                             Text(L("이번 주", "This week")).font(.system(size: 12.5, weight: .medium)).padding(.horizontal, 12).frame(height: 32)
                         }
-                        .buttonStyle(QuietButtonStyle())
-                        Button { model.shift(1) } label: { LHIcon(symbol: "chevron.right").frame(width: 32, height: 32) }
-                            .buttonStyle(QuietButtonStyle())
+                        .buttonStyle(GlassSegmentStyle())
+                        Button { model.shift(1) } label: { LHIcon(symbol: "chevron.right").frame(width: 36, height: 32) }
+                            .buttonStyle(GlassSegmentStyle())
                             .help(L("다음 주", "Next week"))
                     }
+                    .padding(4)
+                    .liquidGlass(Capsule())
                 }
 
                 HStack(spacing: 12) {
@@ -131,15 +134,15 @@ struct SummaryView: View {
                 HStack {
                     Button(action: export) {
                         HStack(spacing: 8) { LHIcon(symbol: "square.and.arrow.up"); Text(L("CSV로 내보내기…", "Export CSV…")) }
-                            .font(.system(size: 12.5, weight: .medium)).padding(.horizontal, 12).frame(height: 32)
+                            .font(.system(size: 12.5, weight: .medium)).padding(.horizontal, 14).frame(height: 36)
                     }
-                    .buttonStyle(QuietButtonStyle())
+                    .buttonStyle(GlassKeyStyle(shape: Capsule()))
                     Spacer()
                     Button(role: .destructive, action: erase) {
                         HStack(spacing: 8) { LHIcon(symbol: "trash"); Text(L("기록 모두 지우기…", "Erase All…")) }
-                            .font(.system(size: 12.5, weight: .medium)).foregroundStyle(.red).padding(.horizontal, 12).frame(height: 32)
+                            .font(.system(size: 12.5, weight: .medium)).foregroundStyle(.red).padding(.horizontal, 14).frame(height: 36)
                     }
-                    .buttonStyle(QuietButtonStyle())
+                    .buttonStyle(GlassKeyStyle(shape: Capsule()))
                 }
             }
             .padding(24)

@@ -10,6 +10,7 @@ import ApplicationServices
 import ServiceManagement
 import SwiftUI
 import Carbon
+import UserNotifications
 
 let figmaBundleID = "com.figma.Desktop"
 /// 화면 언어: 설정 > 일반 > 언어 (자동이면 macOS 언어를 따른다). 바꾸면 앱이 다시 시작해 적용한다.
@@ -830,7 +831,7 @@ final class Engine {
     private var books: [String: PageBook] = [:]
     private(set) var pageJob: PageJob?
     private var lastWatch: TimeInterval = 0
-    var coverPanel = false                      // 이동할 때 패널을 가린다 (화면 기록 권한 필요)
+    var coverPanel = true                       // 이동할 때 패널을 가린다. 설정은 없고, 화면 기록 권한이 이미 있는 Mac에서만 동작한다
     var protectButtonBand = true                // 페이지 버튼이 보일 때 그 높이에서는 화면 끝 반응을 끈다
     var buttonBandAtTop = false                 // 페이지 버튼이 왼쪽 위(파일 이름 아래)에 있으면 그 높이를 지킨다
     static let buttonBand: CGFloat = 76         // 아래 여백 12 + 버튼 48 + 위쪽 여유 16
@@ -1297,6 +1298,102 @@ struct FigmaButtonStyle: ButtonStyle {
     }
 }
 
+/// 메뉴 막대 아이콘 아래에 뜨는 패널 창. 창 자체는 투명하고, 안의 유리 조각들이 바탕화면 위에 바로 뜬다
+/// (시스템 팝오버는 자기 유리 판을 깔아 그 위 조각이 '유리 위의 유리'가 되므로 쓰지 않는다).
+final class MenuPanelWindow: NSPanel {
+    /// 유리 조각의 그림자가 잘리지 않도록 창을 조각보다 넉넉하게 잡는다
+    static let margin = NSEdgeInsets(top: 8, left: 28, bottom: 36, right: 28)
+    /// 메뉴 막대와 첫 유리 칸 사이 (제어 센터와 같다)
+    static let gap: CGFloat = 12
+    private let model: MenuModel
+    private let host: NSHostingView<MenuPanelHost>
+    private var anchor: NSRect = .zero
+    private let onClose: () -> Void
+    private(set) var isOpen = false
+
+    init(model: MenuModel, onClose: @escaping () -> Void) {
+        self.model = model
+        self.onClose = onClose
+        var resize: (CGSize) -> Void = { _ in }
+        host = NSHostingView(rootView: MenuPanelHost(model: model, onSize: { resize($0) }))
+        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        resize = { [weak self] size in self?.place(size) }
+        host.sizingOptions = []          // 창 크기는 직접 정한다 (호스트가 창을 제멋대로 키우지 않게)
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = false                // 그림자는 유리 조각마다 시스템이 그린다
+        level = .popUpMenu
+        collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary]
+        hidesOnDeactivate = false
+        isReleasedWhenClosed = false
+        animationBehavior = .none
+        contentView = host
+        setAccessibilityLabel("Layerhover")
+    }
+    override var canBecomeKey: Bool { true }
+    override func cancelOperation(_ sender: Any?) { onClose() }      // esc
+
+    func open(below rect: NSRect) {
+        anchor = rect
+        isOpen = true
+        model.panelOpen = false          // 나타나는 움직임의 출발점
+        model.menuBarDetail = false      // 늘 첫 화면에서 연다
+        place()
+        alphaValue = 1
+        orderFrontRegardless()
+        makeKey()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isOpen else { return }
+            if !self.isKeyWindow { self.makeKey() }      // 창이 화면에 다 올라온 뒤 한 번 더: esc·⌘,·⌘Q를 받는 창이 되게
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { self.model.panelOpen = true }
+        }
+    }
+
+    func close(animated: Bool) {
+        isOpen = false
+        withAnimation(.easeIn(duration: 0.14)) { model.panelOpen = false }   // 닫힌 패널 안의 움직임(오늘 작업 링의 점)도 멈춘다
+        DispatchQueue.main.asyncAfter(deadline: .now() + (animated ? 0.16 : 0)) { [weak self] in
+            guard let self, !self.isOpen else { return }
+            self.orderOut(nil)
+        }
+    }
+
+    /// 아이콘 가운데 아래에 두되, 화면 밖으로 나가지 않게 (유리 조각 기준으로) 맞춘다
+    private var lastSize: CGSize = .zero
+    /// 내용 크기는 SwiftUI가 잰 값(onSize)을 쓴다. 화면이 바뀌는 중간에 0×0이 오면 무시한다.
+    private func place(_ measured: CGSize? = nil) {
+        let m = MenuPanelWindow.margin
+        var size = measured ?? host.fittingSize
+        if size.width < 1 || size.height < 1 { size = lastSize }
+        guard size.width >= 1, size.height >= 1 else { return }
+        lastSize = size
+        let screen = NSScreen.screens.first { $0.frame.contains(NSPoint(x: anchor.midX, y: anchor.midY)) } ?? NSScreen.main
+        let vf = screen?.visibleFrame ?? .zero
+        // 왼쪽 끝은 첫 화면(격자) 폭으로 정해 고정한다: 세부 화면이 넓어져도 오른쪽으로만 자란다 (제어 센터와 같다)
+        let glassW = size.width - m.left - m.right
+        var gx = anchor.midX - MenuPanelView.width / 2
+        if vf.width > 0 { gx = min(max(gx, vf.minX + 8), vf.maxX - 8 - max(glassW, MenuPanelView.width)) }
+        let top = (anchor == .zero ? vf.maxY : anchor.minY) - MenuPanelWindow.gap + m.top
+        setFrame(NSRect(x: gx - m.left, y: top - size.height, width: size.width, height: size.height), display: true)
+    }
+}
+
+/// 패널 창의 내용: 여백(그림자 자리) + 위에서 내려오며 커지는 등장
+struct MenuPanelHost: View {
+    @ObservedObject var model: MenuModel
+    let onSize: (CGSize) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View {
+        let m = MenuPanelWindow.margin
+        MenuPanelView(model: model)
+            .scaleEffect(model.panelOpen || reduceMotion ? 1 : 0.94, anchor: .top)
+            .opacity(model.panelOpen ? 1 : 0)
+            .padding(EdgeInsets(top: m.top, leading: m.left, bottom: m.bottom, trailing: m.right))
+            .fixedSize()
+            .background(GeometryReader { g in Color.clear.onAppear { onSize(g.size) }.onChange(of: g.size) { onSize($0) } })
+    }
+}
+
 /// 다른 앱(Figma)을 앞에 둔 채로 키 입력을 받는 창.
 final class FloatingPanel: NSPanel {
     init(contentRect: NSRect, borderless: Bool) {
@@ -1605,7 +1702,7 @@ struct ChipView: View {
         // (마우스를 올릴 때만 보이게 했더니 있다는 걸 잊어버렸다).
         // 아이콘과 이름은 그 자리에 둔다 (마우스를 올려도 읽던 글자가 움직이지 않게).
         // ⌄ 표시는 두지 않는다: 마우스를 올리면 ‹ › 에 밀려 사라져서, 누르려는 순간에 단서가 없어졌다.
-        // 페이지 이름은 항상 보인다. 이름이 들어갈 자리가 모자랄 만큼 좁으면 ‹ › 를 띄우지 않는다 (⌃⌥← → 는 그대로).
+        // 페이지 이름은 항상 보인다. 이름이 들어갈 자리가 모자랄 만큼 좁으면 ‹ › 를 띄우지 않는다.
         let showArrows = model.width >= ChipModel.arrowsWidth
         let showTitle = !model.compact
         HStack(spacing: 1) {
@@ -1628,14 +1725,14 @@ struct ChipView: View {
             }
             .buttonStyle(FigmaButtonStyle(style: st))
             .accessibilityLabel(L("페이지로 이동, 지금 \(model.title)", "Go to page, current \(model.title)"))
-            .help((model.agent.active ? model.agent.detail + "\n" : "") + model.title + " — " + L("페이지로 이동 (⌃⌥P)", "Go to page (⌃⌥P)"))
+            .help((model.agent.active ? model.agent.detail + "\n" : "") + model.title + " — " + L("페이지로 이동", "Go to page"))
             if showArrows {
                 if !showTitle { Spacer(minLength: 0) }
                 Group {
                     arrow("chevron.left", enabled: model.canBack, action: back,
-                          help: L("이전 페이지 (⌃⌥←)", "Previous page (⌃⌥←)"))
+                          help: L("이전 페이지", "Previous page"))
                     arrow("chevron.right", enabled: model.canForward, action: forward,
-                          help: L("다음 페이지 (⌃⌥→)", "Next page (⌃⌥→)"))
+                          help: L("다음 페이지", "Next page"))
                 }
                 .transition(.asymmetric(insertion: .opacity.combined(with: .offset(x: 6)), removal: .opacity))
             }
@@ -1673,65 +1770,11 @@ struct ChipView: View {
     }
 }
 
-// MARK: - 단축키
-
-/// Figma가 앞에 있을 때만 켜 두는 전역 단축키. (Figma가 아닐 때는 등록을 풀어서 다른 앱의 같은 키를 막지 않는다.)
-final class HotKeys {
-    private var refs: [EventHotKeyRef] = []
-    private var actions: [UInt32: () -> Void] = [:]
-    private var handlerInstalled = false
-    private(set) var active = false
-    var bindings: [(keyCode: UInt32, modifiers: UInt32, action: () -> Void)] = []
-
-    func setActive(_ on: Bool) {
-        guard on != active else { return }
-        active = on
-        if on { register() } else { unregister() }
-        log("shortcuts \(on ? "on" : "off") (\(refs.count) registered)")
-    }
-
-    private func register() {
-        installHandler()
-        for (i, b) in bindings.enumerated() {
-            var ref: EventHotKeyRef?
-            let id = EventHotKeyID(signature: OSType(0x4550_4B31), id: UInt32(i + 1))
-            if RegisterEventHotKey(b.keyCode, b.modifiers, id, GetApplicationEventTarget(), 0, &ref) == noErr, let ref {
-                refs.append(ref)
-                actions[UInt32(i + 1)] = b.action
-            } else {
-                log("hotkey \(b.keyCode) could not be registered (used by another app?)")
-            }
-        }
-    }
-
-    private func unregister() {
-        refs.forEach { UnregisterEventHotKey($0) }
-        refs.removeAll()
-        actions.removeAll()
-    }
-
-    private func installHandler() {
-        guard !handlerInstalled else { return }
-        handlerInstalled = true
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, data in
-            var id = EventHotKeyID()
-            GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
-                              nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
-            let me = Unmanaged<HotKeys>.fromOpaque(data!).takeUnretainedValue()
-            log("shortcut \(id.id) pressed")
-            DispatchQueue.main.async { me.actions[id.id]?() }
-            return noErr
-        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), nil)
-    }
-}
-
 // MARK: - 페이지 바로가기 관리
 
-/// 단축키·왼쪽 아래 버튼·바로가기 창을 엔진의 페이지 기록과 이어 준다.
+/// 왼쪽 아래 버튼·바로가기 창을 엔진의 페이지 기록과 이어 준다.
 final class PageNavigator: NSObject, NSWindowDelegate {
     let engine: Engine
-    let hotKeys = HotKeys()
     var showChip = true { didSet { applyChipPlace() } }
     var chipPlace: PageChipPlace = .bottomLeft { didSet { applyChipPlace() } }
     /// 버튼이 화면 왼쪽 끝 가까이에 있을 때만, 버튼을 누르러 가다 패널이 펼쳐지지 않게 그 높이의 끝 반응을 끈다.
@@ -1740,7 +1783,6 @@ final class PageNavigator: NSObject, NSWindowDelegate {
         engine.buttonBandAtTop = false
         sync()
     }
-    var shortcutsOn = true { didSet { sync() } }
 
     private var palette: FloatingPanel?
     private let paletteModel = PaletteModel()
@@ -1751,12 +1793,6 @@ final class PageNavigator: NSObject, NSWindowDelegate {
     init(engine: Engine) {
         self.engine = engine
         super.init()
-        let ctrlOpt = UInt32(controlKey | optionKey)
-        hotKeys.bindings = [
-            (35, ctrlOpt, { [weak self] in self?.openPalette() }),    // ⌃⌥P
-            (123, ctrlOpt, { [weak self] in self?.back(nil) }),       // ⌃⌥←
-            (124, ctrlOpt, { [weak self] in self?.forward(nil) }),    // ⌃⌥→
-        ]
         engine.onPagesChanged = { [weak self] in self?.sync() }
         // 앱을 오갈 때 다음 확인(0.25초)을 기다리지 않고 바로 버튼을 띄우거나 감춘다.
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -1766,14 +1802,13 @@ final class PageNavigator: NSObject, NSWindowDelegate {
         }
     }
 
-    /// 0.04초마다 엔진 다음에 불린다. Figma가 앞에 있는지에 따라 단축키와 버튼을 켜고 끈다.
+    /// 0.04초마다 엔진 다음에 불린다. Figma가 앞에 있는지에 따라 버튼을 켜고 끈다.
     private var lastSync: TimeInterval = 0
     private var lastStyleRead: TimeInterval = -10
     private var lastActivity: TimeInterval = 0
     private var style = FigmaStyle(dark: true)
     func tick() {
         let figmaFront = engine.isFigmaActive && AXIsProcessTrusted()
-        hotKeys.setActive(figmaFront && shortcutsOn)
         let now = ProcessInfo.processInfo.systemUptime
         if now - lastSync > 0.25 { sync(); lastSync = now }
         if now - lastActivity >= 1 {
@@ -2056,11 +2091,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var player: MarkPlayer!
     private var statusTitleKey = ""
     let menuModel = MenuModel()
-    private var popover: NSPopover?
+    private var panelWindow: MenuPanelWindow?
     /// 패널을 붙이는 보이지 않는 창. 연 순간 메뉴 막대 아이콘 칸 자리에 놓는다.
     /// 아이콘 칸에 직접 붙이면 온도를 켜고 끌 때 칸 폭이 바뀌어 패널이 좌우로 흔들린다.
-    private var panelAnchor: NSWindow?
     private var outsideClick: Any?
+    private var insideClick: Any?
     let defaults = UserDefaults.standard
     let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
 
@@ -2070,9 +2105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         defaults.register(defaults: ["enabled": true, "rightEdge": false, "minimizeByDefault": true,
                                      "collapseDelay": 0.12, "leaveMargin": 12.0,
                                      "hardDwell": 0.06, "softDwell": 0.18,
-                                     "showPageChip": true, "pageShortcuts": true, "workLog": true, "coverPanel": false, "animateMark": true, "weatherMode": 0])
+                                     "showPageChip": true, "workLog": true, "animateMark": true, "weatherMode": 0])
         defaults.removeObject(forKey: "animateMark")      // 움직임 끄기 설정은 없앴다: 예전에 꺼 둔 값이 남아 멈춰 있지 않게
-        engine.coverPanel = defaults.bool(forKey: "coverPanel")
         ActivityLog.shared.enabled = defaults.bool(forKey: "workLog")
         engine.enabled = defaults.bool(forKey: "enabled")
         engine.rightEdge = defaults.bool(forKey: "rightEdge")
@@ -2083,7 +2117,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         engine.softDwell = max(0, defaults.double(forKey: "softDwell"))
         pages.showChip = defaults.bool(forKey: "showPageChip")
         pages.chipPlace = PageChipPlace(rawValue: defaults.integer(forKey: "pageChipPlace")) ?? .bottomLeft
-        pages.shortcutsOn = defaults.bool(forKey: "pageShortcuts")
 
         // 1.5.0에서 바뀐 아이콘: 골라 둔 사람은 새 아이콘으로 이어 준다
         let renamed = ["lily": "magnolia", "moon": "crane", "dipper": "crane", "cairn": "pagoda"]   // 북두칠성은 학으로 바뀌었다
@@ -2337,9 +2370,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         m.minimizeByDefault = engine.minimizeByDefault
         m.showChip = pages.showChip
         m.chipPlace = pages.chipPlace.rawValue
-        m.shortcutsOn = pages.shortcutsOn
-        m.coverPanel = engine.coverPanel
-        m.coverNeedsPermission = engine.coverPanel && !PanelCover.hasPermission
         m.workLog = ActivityLog.shared.enabled
         m.launchAtLogin = SMAppService.mainApp.status == .enabled
     }
@@ -2349,6 +2379,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         func closing(_ f: @escaping () -> Void) -> () -> Void { { [weak self] in self?.closePanel(); f() } }
         var a = MenuModel.Actions()
         a.toggleEnabled = { [weak self] in self?.toggleEnabled() }
+        a.toggleFocus = { [weak self] in self?.toggleFocus() }
         a.openAccessibility = closing { [weak self] in self?.openAccessibility() }
         a.openPalette = closing { [weak self] in self?.openPagePalette() }
         a.showSummary = closing { [weak self] in self?.showSummary() }
@@ -2383,8 +2414,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.defaults.set(i, forKey: "pageChipPlace")
             self.syncMenuModel()
         }
-        a.toggleShortcuts = { [weak self] in self?.togglePageShortcuts() }
-        a.toggleCover = { [weak self] in self?.toggleCover() }
         a.toggleWorkLog = { [weak self] in self?.toggleWorkLog() }
         a.toggleLogin = { [weak self] in self?.toggleLogin() }
         a.setLanguage = { lang in
@@ -2407,54 +2436,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func togglePanel() {
-        if popover?.isShown == true { closePanel(); return }
+        if panelWindow?.isOpen == true { closePanel(); return }
         guard let button = statusItem.button else { return }
-        if popover == nil {
+        if panelWindow == nil {
             wireMenuActions()
-            let host = NSHostingController(rootView: MenuPanelView(model: menuModel))
-            host.sizingOptions = [.preferredContentSize]     // 패널 높이는 권한 상태에 따라서만 달라진다 (펼치는 부분이 없다)
-            let p = NSPopover()
-            p.behavior = .transient
-            p.animates = true
-            p.contentViewController = host
-            popover = p
-            NotificationCenter.default.addObserver(forName: NSPopover.didCloseNotification, object: p, queue: .main) { [weak self] _ in
-                self?.panelAnchor?.orderOut(nil)
-                self?.statusItem.button?.highlight(false)
-                if let m = self?.outsideClick { NSEvent.removeMonitor(m); self?.outsideClick = nil }
-            }
+            panelWindow = MenuPanelWindow(model: menuModel) { [weak self] in self?.closePanel() }
         }
         syncMenuModel()
         ActivityLog.shared.flush()
-        if let bw = button.window {
-            // 기준은 아이콘만 있을 때의 정사각형 칸: 메뉴 막대 칸은 오른쪽 끝이 고정되고 온도가 붙으면 왼쪽으로 늘어나므로,
-            // 오른쪽 끝에서 정사각형 한 칸만큼을 잡는다. 온도를 켜고 열든 끄고 열든 패널은 늘 같은 자리다.
-            var rect = bw.convertToScreen(button.convert(button.bounds, to: nil))
-            let square = NSStatusBar.system.thickness
-            if rect.width > square { rect.origin.x = rect.maxX - square; rect.size.width = square }
-            let anchor = panelAnchor ?? {
-                let w = NSWindow(contentRect: rect, styleMask: .borderless, backing: .buffered, defer: false)
-                w.isOpaque = false; w.backgroundColor = .clear; w.hasShadow = false
-                w.ignoresMouseEvents = true; w.isReleasedWhenClosed = false
-                w.level = .statusBar; w.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
-                panelAnchor = w
-                return w
-            }()
-            anchor.setFrame(rect, display: false)
-            anchor.orderFrontRegardless()
-            if let v = anchor.contentView { popover?.show(relativeTo: v.bounds, of: v, preferredEdge: .minY) }
-        } else {
-            popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        // 기준은 아이콘만 있을 때의 정사각형 칸: 메뉴 막대 칸은 오른쪽 끝이 고정되고 온도가 붙으면 왼쪽으로 늘어나므로,
+        // 오른쪽 끝에서 정사각형 한 칸만큼을 잡는다. 온도를 켜고 열든 끄고 열든 패널은 늘 같은 자리다.
+        var rect = button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) } ?? .zero
+        let square = NSStatusBar.system.thickness
+        if rect.width > square { rect.origin.x = rect.maxX - square; rect.size.width = square }
+        // 화면이 여러 개면 메뉴 막대 아이콘도 화면마다 하나씩 있다. 아이콘의 창이 가리키는 화면과
+        // 지금 마우스가 있는 화면(사람이 누른 곳)이 다르면, 오른쪽 끝에서 같은 거리만큼 떨어진 그 화면의 아이콘 아래에 연다.
+        let mouse = NSEvent.mouseLocation
+        if let clicked = NSScreen.screens.first(where: { $0.frame.contains(mouse) }),
+           let home = button.window?.screen, clicked != home {
+            let fromRight = home.frame.maxX - rect.minX
+            rect.origin.x = clicked.frame.maxX - fromRight
+            rect.origin.y = clicked.visibleFrame.maxY
+            rect.size.height = max(clicked.frame.maxY - clicked.visibleFrame.maxY, 1)
         }
+        panelWindow?.open(below: rect)
         button.highlight(true)
-        popover?.contentViewController?.view.window?.makeKey()
         // 다른 앱을 누르면 닫는다 (메뉴 막대 앱은 앞에 나서지 않으므로 직접 지켜본다)
         outsideClick = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.closePanel() }
+        // 이 앱의 다른 창(설정 등)을 눌러도 닫는다. 메뉴 막대 아이콘은 togglePanel 이 맡는다.
+        // esc 로도 닫는다 (안의 SwiftUI 가 esc 를 먼저 받아 창까지 올라오지 않을 때가 있어 직접 본다)
+        insideClick = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] e in
+            guard let self else { return e }
+            if e.type == .keyDown {
+                if e.keyCode == 53 {
+                    // 펼친 칸을 보고 있으면 먼저 첫 화면으로 돌아간다 (제어 센터와 같다)
+                    if self.menuModel.menuBarDetail {
+                        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { self.menuModel.menuBarDetail = false }
+                    } else { self.closePanel() }
+                    return nil
+                }
+                return e
+            }
+            if e.window !== self.panelWindow, e.window !== self.statusItem.button?.window { self.closePanel() }
+            return e
+        }
     }
 
     func closePanel() {
-        popover?.performClose(nil)
+        guard panelWindow?.isOpen == true else { return }
+        panelWindow?.close(animated: true)
+        statusItem.button?.highlight(false)
         if let m = outsideClick { NSEvent.removeMonitor(m); outsideClick = nil }
+        if let m = insideClick { NSEvent.removeMonitor(m); insideClick = nil }
     }
 
     /// 날씨: 0 끔, 1 아이콘, 2 온도와 함께. 켜면 고른 아이콘 대신 날씨가 보인다.
@@ -2480,6 +2513,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         refreshIcon()
     }
 
+    // MARK: 뽀모도로
+
+    private var focusTimer: Timer?
+
+    /// 누르면 25분을 시작하고, 도는 중이면 멈춘다. 끝나면 소리와 알림으로 알린다.
+    @objc func toggleFocus() {
+        focusTimer?.invalidate(); focusTimer = nil
+        if menuModel.focusEnd != nil {
+            menuModel.focusEnd = nil
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["focus"])
+            return
+        }
+        let end = Date().addingTimeInterval(Focus.length)
+        menuModel.focusEnd = end
+        let t = Timer(fire: end, interval: 0, repeats: false) { [weak self] _ in self?.focusDone() }
+        RunLoop.main.add(t, forMode: .common)
+        focusTimer = t
+        // 알림: 처음 한 번만 허락을 묻는다. 허락하지 않아도 소리는 난다.
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        let c = UNMutableNotificationContent()
+        c.title = L("뽀모도로 끝", "Pomodoro done")
+        c.body = L("25분 집중했어요. 잠깐 쉬어 가세요.", "25 minutes of focus. Take a short break.")
+        c.sound = .default
+        center.add(UNNotificationRequest(identifier: "focus", content: c,
+                                         trigger: UNTimeIntervalNotificationTrigger(timeInterval: Focus.length, repeats: false)))
+        log("focus started")
+    }
+
+    private func focusDone() {
+        focusTimer = nil
+        menuModel.focusEnd = nil
+        NSSound(named: "Glass")?.play()
+        log("focus done")
+    }
+
     func setSpeed(_ s: CollapseSpeed) {
         (engine.collapseDelay, engine.leaveMargin) = s.values
         defaults.set(engine.collapseDelay, forKey: "collapseDelay")
@@ -2488,20 +2557,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func showSummary() { summary.show() }
-
-    @objc func toggleCover() {
-        if engine.coverPanel && PanelCover.hasPermission {
-            engine.coverPanel = false
-        } else {
-            engine.coverPanel = true
-            if !PanelCover.hasPermission {
-                // 페이지를 옮기기 직전 Figma 화면을 찍어 덮어 두는 데 필요하다. 권한을 켠 뒤에는 Layerhover를 다시 켜야 한다.
-                PanelCover.requestPermission()
-            }
-        }
-        defaults.set(engine.coverPanel, forKey: "coverPanel")
-        syncMenuModel()
-    }
 
     /// Claude Code 설정(~/.claude/settings.json)에 넣을 훅 설정을 복사해 준다. 설정 파일은 직접 고치지 않는다.
     @objc func connectClaude() {
@@ -2561,12 +2616,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func togglePageChip() {
         pages.showChip.toggle()
         defaults.set(pages.showChip, forKey: "showPageChip")
-        syncMenuModel()
-    }
-
-    @objc func togglePageShortcuts() {
-        pages.shortcutsOn.toggle()
-        defaults.set(pages.shortcutsOn, forKey: "pageShortcuts")
         syncMenuModel()
     }
 
@@ -2647,12 +2696,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             w.makeKeyAndOrderFront(nil)
             return
         }
-        let host = NSHostingController(rootView: SettingsView(model: menuModel, close: { [weak self] in self?.settingsWindow?.close() }))
-        if #available(macOS 13.0, *) { host.sizingOptions = [] }
-        let w = NSWindow(contentViewController: host)
+        // Finder와 같은 짜임: AppKit 분할 창의 옆줄 칸 + 내용 칸 (각 칸 안은 SwiftUI)
+        let close: () -> Void = { [weak self] in self?.settingsWindow?.close() }
+        let side = NSHostingController(rootView: SettingsView(model: menuModel, close: close, part: .sidebar))
+        let main = NSHostingController(rootView: SettingsView(model: menuModel, close: close, part: .detail))
+        side.sizingOptions = []; main.sizingOptions = []
+        let split = NSSplitViewController()
+        let sideItem = NSSplitViewItem(sidebarWithViewController: side)
+        sideItem.canCollapse = false
+        sideItem.minimumThickness = SettingsStyle.sidebarWidth; sideItem.maximumThickness = SettingsStyle.sidebarWidth
+        split.addSplitViewItem(sideItem)
+        split.addSplitViewItem(NSSplitViewItem(viewController: main))
+        let w = NSWindow(contentViewController: split)
         w.title = L("Layerhover 설정", "Layerhover Settings")
-        w.isOpaque = false; w.backgroundColor = .clear         // 유리: 창 뒤가 비치게
         w.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        // 빈 도구 막대를 달아 Finder와 같은 통합 제목 막대(큰 모서리 반경, 옆줄 안 신호등 자리)를 받는다
+        w.toolbar = NSToolbar(identifier: "LayerhoverSettings")
+        w.toolbarStyle = .unified
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
         w.setContentSize(SettingsStyle.size)
@@ -2771,8 +2831,8 @@ if let i = args.firstIndex(of: "--render-menu"), args.count > i + 1 {
     m.marks = MarkLibrary.shared.marks
     m.selectedMark = args.firstIndex(of: "--mark").flatMap { args.count > $0 + 1 ? args[$0 + 1] : nil } ?? MarkLibrary.defaultID
     m.enabled = state != "paused"; m.figmaRunning = state != "nofigma"; m.trusted = state != "untrusted"
+    if args.contains("--focus") { m.focusEnd = Date().addingTimeInterval(14 * 60 + 32) }   // 뽀모도로 도는 중
     if state == "blocked" { m.motionBlocked = L("macOS '동작 줄이기'가 켜져 있어 멈춰 있어요", "Paused because Reduce Motion is on") }
-    if state == "settings" { m.coverPanel = true; m.coverNeedsPermission = true }
     m.cheer = Cheer.line(trusted: m.trusted, awake: m.enabled, figmaRunning: m.figmaRunning, logging: true, active: 2 * 3600 + 40 * 60, streak: 0, hour: 15)
     m.dayProgress = (2 * 3600 + 40 * 60) / (6 * 3600); m.working = true
     if args.contains("--weather") { m.weatherMode = 2; m.weatherStatus = "4° 맑음 · 오후 12:57에 받음"; m.weatherTemp = 4; MarkLibrary.shared.weatherMark = "wx-clear" }
