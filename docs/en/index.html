@@ -9,7 +9,13 @@
 <meta property="og:description" content="A menu bar helper that brings out Figma panels when the pointer touches the screen edge. Free, macOS 13+.">
 <meta property="og:image" content="https://kjh13242.github.io/layerhover/assets/og.png">
 <meta property="og:locale" content="en_US">
+<meta property="og:url" content="https://kjh13242.github.io/layerhover/en/">
+<meta property="og:type" content="website">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://kjh13242.github.io/layerhover/en/">
+<meta name="theme-color" content="#E9EDFB">
 <link rel="icon" href="../assets/app-icon.png">
 <link rel="apple-touch-icon" href="../assets/app-icon.png">
 <link rel="alternate" hreflang="ko" href="https://kjh13242.github.io/layerhover/">
@@ -381,7 +387,7 @@ img{display:block;max-width:100%}
 .chip button:disabled{opacity:.35;cursor:default;background:none}
 
 /* palette */
-.pal{position:absolute;left:50%;top:15%;width:min(430px,88%);transform:translate(-50%,-6px) scale(.98);opacity:0;pointer-events:none;z-index:7;background:#2A2A2A;border:1px solid #444;border-radius:13px;box-shadow:0 30px 80px rgba(0,0,0,.6);transition:opacity .18s,transform .25s var(--ease);font-family:var(--ui)}
+.pal{position:absolute;left:50%;top:15%;width:min(430px,88%);transform:translate(-50%,-6px) scale(.98);opacity:0;pointer-events:none;z-index:7;background:#2C2C2C;border:1px solid #444;border-radius:13px;box-shadow:0 30px 80px rgba(0,0,0,.6);transition:opacity .18s,transform .25s var(--ease);font-family:var(--ui)}
 .pal.open{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .pal-s{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #3E3E3E}
 .pal-s input{flex:1;min-width:0;background:none;border:0;outline:0;color:#F3F3F3;font:500 15px var(--ui)}
@@ -401,85 +407,97 @@ img{display:block;max-width:100%}
 .keys kbd{min-width:40px;height:40px;padding:0 10px;display:grid;place-items:center;border-radius:9px;background:rgba(250,250,250,.96);color:#111;font:600 17px var(--ui);box-shadow:0 2px 0 #B8BBC2,0 10px 24px rgba(0,0,0,.45)}
 
 /* menubar dropdown (light, real panel replica) */
-.dd{position:absolute;top:34px;right:120px;width:332px;z-index:9;padding:20px;border-radius:24px;overflow:hidden;
-  background:rgba(246,246,248,.82);-webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);
-  border:1px solid rgba(255,255,255,.7);box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 24px 60px -20px rgba(0,0,0,.45);
-  font:400 12.5px/1.3 var(--ui);color:#1C1C1E;opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top right;transition:opacity .2s,transform .3s var(--ease);pointer-events:none}
+.dd{position:absolute;top:40px;right:120px;width:292px;z-index:9;font:400 12.5px/1.3 var(--ui);color:#1C1C1E;
+  opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top center;transition:opacity .2s,transform .3s var(--ease);pointer-events:none}
 .dd.open{opacity:1;transform:none;pointer-events:auto}
-/* glass tile: the app's GlassFill */
-.dd .gl{background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.95);box-shadow:0 0 0 .5px rgba(0,0,0,.07),0 1px 3px rgba(0,0,0,.05);border-radius:8px;transition:background .15s}
+/* The app's panel has no outer box: each tile is its own piece of glass floating over the desktop (Control Center units: 64 tile, 12 gap, 292 wide) */
+.dd .gl,.sheet{background:rgba(250,250,252,.8);-webkit-backdrop-filter:blur(30px) saturate(1.8);backdrop-filter:blur(30px) saturate(1.8);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.75),0 0 0 .5px rgba(0,0,0,.08),0 12px 30px -10px rgba(0,0,0,.3);transition:background .15s}
+.dd .gl:hover,.dd .gl.ghov{background:rgba(255,255,255,.95)}
 .ring path{fill:none;stroke-width:2;stroke-linecap:round}
 .ring .trk{stroke:rgba(0,0,0,.07)}
 .ring .day{stroke:rgba(0,0,0,.4);stroke-dasharray:44 100}
-/* same grid as the app's panel (Control Center units: 64 tile, 12 gap) */
-.dd{width:332px;padding:20px}
-.cc,.sheet{transition:opacity .22s,transform .3s var(--ease)}
-.sheet{position:absolute;inset:0;padding:16px 18px;opacity:0;transform:scale(.96);transform-origin:top left;pointer-events:none}
-.dd.detail .cc{opacity:0;transform:scale(.96);pointer-events:none}
-.dd.detail .sheet{opacity:1;transform:none;pointer-events:auto}
 .cc-top{display:grid;grid-template-columns:140px 140px;gap:12px}
 .cc-col{display:grid;gap:12px}
 .cc-row{display:grid;grid-template-columns:140px 140px;gap:12px;margin-top:12px}
 .dd .gl.big{position:relative;height:140px;border-radius:30px;padding:15px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left;color:#1C1C1E}
 .dd .gl.ccp{height:64px;border-radius:32px;display:flex;align-items:center;gap:7px;padding:0 10px 0 14px;text-align:left;color:#1C1C1E}
-.disc{flex:none;position:relative;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.07);color:#1C1C1E;font-style:normal;transition:background .2s,color .2s}
-.tx{min-width:0}.tx b{display:block;font-size:13px;font-weight:700;white-space:nowrap}.tx small{display:block;font-size:12px;color:#6B6B70;white-space:nowrap;font-variant-numeric:tabular-nums}
-.big .ai{position:relative;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.07)}
+.disc{flex:none;position:relative;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.12);color:#1C1C1E;font-style:normal;transition:background .2s,color .2s}
+.cc .disc>svg:not(.fr){width:18px;height:18px}
+.tx{min-width:0}.tx b{display:block;font-size:13px;font-weight:700;white-space:nowrap}.tx small{display:block;font-size:12.5px;color:rgba(28,28,30,.7);white-space:nowrap;font-variant-numeric:tabular-nums}
+.big .ai{position:relative;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.12)}
 .big .ai .ring{position:absolute;inset:-3px;width:54px;height:54px;overflow:visible}
 .big .go{position:absolute;right:16px;top:14px;font-size:18px;color:#A1A1A6;opacity:0;transition:opacity .15s}
 .big:hover .go,.big.ghov .go{opacity:1}
-.big .nm b{display:block;font-size:13px;font-weight:700}.big .nm small{display:block;font-size:12px;color:#6B6B70}
+.big .nm b{display:block;font-size:13px;font-weight:700}.big .nm small{display:block;font-size:12.5px;color:rgba(28,28,30,.7)}
 .dd.resting #restBtn .disc{background:#0D99FF;color:#fff}
 .dd.resting .ai .mk{opacity:.35}.dd.resting .ring{display:none}
 #focusBtn .fr{position:absolute;inset:0;width:36px;height:36px;transform:rotate(-90deg);opacity:0}
 #focusBtn .fr circle{fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:var(--left,100) 100}
 .dd.focus #focusBtn .disc{background:#0D99FF;color:#fff}.dd.focus #focusBtn .fr{opacity:.9}
-.cc-foot{display:flex;justify-content:center;gap:10px;margin-top:12px}
-.dd .gl.sm{height:28px;border-radius:14px;padding:0 16px;font-size:12px;font-weight:500;color:#6B6B70}
-.dd .gl.sm.circ{width:28px;padding:0;display:grid;place-items:center}
-.sheet .back{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:700;color:#1C1C1E;padding:4px 6px;border-radius:10px}
-.sheet .back span{font-size:20px;line-height:1;color:#6B6B70}
-.sheet hr{margin:10px 0}
-.sheet .sec{display:block;margin:4px 6px 8px;font-size:12px;font-weight:600;color:#6B6B70}
-.dd-g{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px}
-.dd-g button{aspect-ratio:1;border-radius:50%;display:grid;place-items:center;transition:background .15s}
-.dd-g button:hover,.dd-g button.ghov{background:rgba(0,0,0,.05)}
-.dd-g button.on{background:#0D99FF}.dd-g button.on .mk{filter:brightness(0) invert(1)}
-.dd.wxon .dd-g button .mk{opacity:.65}
-.dd-wx{display:grid;gap:2px}
-.dd-wx button{display:flex;align-items:center;gap:10px;height:36px;padding:0 6px;border-radius:12px;font-size:13px;color:#1C1C1E;text-align:left}
+.cc-foot{display:flex;justify-content:center;margin-top:12px}
+.dd .gl.sm{height:28px;border-radius:14px;padding:0 16px;font-size:12px;font-weight:500;color:rgba(28,28,30,.7)}
+/* the icon sheet: one sheet of glass that grows out of the status tile (307 wide, radius 26), like Control Center's detail views */
+.sheet{display:none;width:307px;border-radius:26px;padding:10px 14px 12px}
+.dd.detail .cc{display:none}
+.dd.detail .sheet{display:block;transform-origin:top left;animation:shIn .34s var(--ease)}
+@keyframes shIn{from{opacity:0;transform:scale(.5)}}
+.sheet .back{display:flex;align-items:center;gap:8px;height:36px;font-size:15px;font-weight:700;color:#1C1C1E;padding:0 4px}
+.sheet .back span{font-size:20px;line-height:1;font-weight:500;margin-top:-2px}
+.sheet hr{border:0;border-top:1px solid rgba(0,0,0,.1);margin:6px 0 8px}
+.sheet .shd{display:block;margin:0 2px 4px;font-size:12px;font-weight:600;color:rgba(28,28,30,.45)}
+.dd-g{display:grid;grid-template-columns:repeat(7,1fr);row-gap:6px;margin-bottom:4px}
+.dd-g button{width:34px;height:34px;justify-self:center;border-radius:50%;display:grid;place-items:center;transition:background .15s}
+.dd-g .mk{--s:20px}
+.dd-g button:hover,.dd-g button.ghov{background:rgba(0,0,0,.06)}
+.dd-g button.on{background:#0D99FF}.dd-g button.on .mk.v{color:#fff}
+.dd-wx{display:grid}
+.dd-wx button{display:flex;align-items:center;gap:8px;height:32px;padding:0 3px;border-radius:12px;font-size:13px;color:#1C1C1E;text-align:left}
 .dd-wx button:hover,.dd-wx button.ghov{background:rgba(0,0,0,.05)}
 .dd-wx .disc{width:26px;height:26px}.dd-wx .mk{--s:16px}
-.dd-wx button.on .disc{background:#0D99FF}.dd-wx button.on .disc .mk{filter:brightness(0) invert(1)}
-.dd-wx button b{margin-left:auto;font-weight:600;color:#6B6B70}
-.dd hr{border:0;border-top:1px solid rgba(0,0,0,.08)}
-.dd .gl:hover,.dd .gl.ghov{background:rgba(255,255,255,.85)}
+.dd-wx button.on .disc{background:#0D99FF}.dd-wx button.on .disc .mk.v{color:#fff}
+.dd-wx .tr{margin-left:auto;display:flex;align-items:center;gap:3px;color:rgba(28,28,30,.6);font-size:13px}
+.dd-wx .tr .mk{--s:14px;opacity:.7}
 /* activity window */
-.act{position:absolute;left:50%;top:50%;width:min(520px,92%);transform:translate(-50%,-46%) scale(.98);opacity:0;pointer-events:none;z-index:8;background:#FBFBFC;color:#1A1A1A;border-radius:12px;box-shadow:0 0 0 1px rgba(0,0,0,.2),0 40px 90px rgba(0,0,0,.55);font-family:var(--ui);transition:opacity .2s,transform .35s var(--ease);overflow:hidden}
+.act{position:absolute;left:50%;top:50%;width:min(560px,92%);transform:translate(-50%,-46%) scale(.98);opacity:0;pointer-events:none;z-index:8;color:#1C1C1E;border-radius:16px;overflow:hidden;
+  background:rgba(246,246,248,.9);-webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);
+  box-shadow:0 0 0 .5px rgba(0,0,0,.18),0 40px 90px rgba(0,0,0,.55);font-family:var(--ui);transition:opacity .2s,transform .35s var(--ease)}
 .act.open{opacity:1;transform:translate(-50%,-50%);pointer-events:auto}
-.act-bar{height:36px;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid #E6E6E9;position:relative;background:#F3F3F5}
+.act-bar{height:36px;display:flex;align-items:center;padding:0 14px;position:relative}
 .act-bar .lights i{width:11px;height:11px}
-.act-bar .ttl{position:absolute;left:50%;transform:translateX(-50%);font-size:12.5px;font-weight:600;color:#444}
-.act-in{padding:18px 20px 16px}
-.act-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
-.act-top small{color:#6B6B70;font-size:11.5px;display:block}
-.act-top .tot{font-size:26px;font-weight:650;letter-spacing:-.02em;line-height:1.2}
+.act-bar .ttl{position:absolute;left:50%;transform:translateX(-50%);font-size:12.5px;font-weight:600;color:#6B6B70}
+.act-bar .ex{margin-left:auto}
+.act-in{padding:4px 22px 18px}
+.act-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.act-top .h{display:block;font-size:17px;font-weight:650;letter-spacing:-.01em}
+.act-top small{display:block;color:#6B6B70;font-size:11.5px}
+.act .seg{display:flex;padding:3px;border-radius:99px;background:rgba(255,255,255,.7);box-shadow:0 0 0 .5px rgba(0,0,0,.1),0 2px 8px rgba(0,0,0,.06)}
+.act .seg i{font-style:normal;height:26px;min-width:28px;padding:0 9px;display:grid;place-items:center;border-radius:99px;font-size:11.5px;font-weight:500;color:#1C1C1E}
+.act .seg i:nth-child(2){background:rgba(0,0,0,.05)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.tiles div{border-radius:12px;padding:9px 10px;background:rgba(255,255,255,.6);box-shadow:0 0 0 .5px rgba(0,0,0,.08);min-height:54px}
+.tiles small{display:block;font-size:10.5px;color:#6B6B70}
+.tiles b{display:block;font-size:14px;font-weight:650;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tiles em{display:block;font-style:normal;font-size:9.5px;color:#8A8A90;white-space:nowrap}
+.act-h{margin:14px 0 6px;font-size:12px;font-weight:600}
 .ex{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:#8A8A90;border:1px solid #DADADF;border-radius:4px;padding:2px 6px;text-transform:uppercase}
-.bars{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;height:120px;align-items:end;margin:18px 0 6px;position:relative}
-.bar{position:relative;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px}
-.bar i{display:block;width:100%;border-radius:4px 4px 2px 2px;background:#D9DDE6;height:0;transition:height .9s var(--ease)}
-.bar.today i{background:var(--accent)}
-.bar.ghov i{background:#AEB6C8}.bar.today.ghov i{background:var(--accent-2)}
-.bar span{font-size:11px;color:#77777C}
-.bar .tip{position:absolute;bottom:calc(var(--h) + 26px);left:50%;transform:translateX(-50%);background:#1A1A1A;color:#fff;font-size:11px;padding:3px 7px;border-radius:5px;white-space:nowrap;opacity:0;transition:opacity .15s}
+.bars{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;height:96px;align-items:end;position:relative}
+.bar{position:relative;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px}
+.bar .stk{width:100%;display:flex;flex-direction:column-reverse;border-radius:4px 4px 2px 2px;overflow:hidden;height:0;transition:height .9s var(--ease)}
+.bar .stk i{display:block;width:100%}
+.bar .stk .f{background:#0A84FF}.bar .stk .o{background:rgba(10,132,255,.35)}
+.bar.ghov .stk{filter:brightness(1.08)}
+.bar span{font-size:10.5px;color:#77777C}
+.bar .tip{position:absolute;bottom:calc(var(--h) + 24px);left:50%;transform:translateX(-50%);background:#1A1A1A;color:#fff;font-size:11px;padding:3px 7px;border-radius:5px;white-space:nowrap;opacity:0;transition:opacity .15s}
 .bar.ghov .tip,.bar:hover .tip{opacity:1}
-.files{border-top:1px solid #E6E6E9;margin-top:10px}
-.file{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:9px 0;border-bottom:1px solid #EEEEF0;font-size:12.5px}
-.file .m{grid-column:1/-1;height:4px;border-radius:2px;background:#EEF0F3;overflow:hidden}
-.file .m i{display:block;height:100%;background:#1A1A1A;width:0;transition:width 1s var(--ease)}
-.file .t{color:#55555A;font-variant-numeric:tabular-nums}
-.file.live .nm::after{content:"Now";margin-left:7px;font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:1px 6px;border-radius:9px}
-.act-note{margin-top:12px;font-size:11.5px;color:#77777C}
+.lg{display:flex;gap:12px;margin-top:6px;font-size:10.5px;color:#6B6B70}
+.lg span::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;background:#0A84FF}.lg .o::before{background:rgba(10,132,255,.35)}
+.files{display:grid;gap:2px}
+.file{display:grid;grid-template-columns:1fr auto;gap:3px 12px;padding:4px 0;font-size:12px}
+.file .m{grid-column:1/-1;height:3px;border-radius:2px;overflow:hidden}
+.file .m i{display:block;height:100%;background:#0A84FF;opacity:.75;width:0;transition:width 1s var(--ease)}
+.file .t{color:#6B6B70;font-variant-numeric:tabular-nums}
+.file.live .nm::after{content:"now";margin-left:7px;font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:1px 6px;border-radius:9px}
 
 /* ghost cursor */
 .ghost{position:absolute;left:0;top:0;width:22px;height:22px;z-index:20;pointer-events:none;opacity:0;transition:opacity .3s;will-change:transform}
@@ -595,7 +613,8 @@ footer .peekrow{display:flex;gap:8px;align-items:center}
   .lp{width:216px}
   .chip .nm{max-width:120px}
   .rp{width:200px}
-  .dd{right:6px;left:6px;width:auto}
+  .dd{right:6px}
+  .sheet{width:292px}
   .act-in{padding:14px}
   .bars{gap:6px;height:100px}
   .icons{grid-template-columns:repeat(2,1fr)}
@@ -820,16 +839,16 @@ footer{border-top-color:var(--glass-line)}
 /* activity: the real Activity window (Summary.swift), glass like the app, with sample data */
 .act-sec .fbody{grid-template-columns:.8fr 1.2fr}
 .fshot.real{padding:var(--sp-5)}
-.aw{border-radius:12px;overflow:hidden;background:rgba(246,246,248,.82);box-shadow:0 0 0 .5px rgba(0,0,0,.14),0 24px 48px -24px rgba(14,15,18,.45);font-family:var(--ui);color:#1C1C1E}
+.aw{border-radius:16px;overflow:hidden;background:rgba(246,246,248,.82);box-shadow:0 0 0 .5px rgba(0,0,0,.14),0 24px 48px -24px rgba(14,15,18,.45);font-family:var(--ui);color:#1C1C1E}
 .aw-bar{position:relative;height:28px;display:flex;align-items:center;padding:0 10px}
 .aw-bar b{position:absolute;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:#8A8A90}
 .aw-lights{display:flex;gap:6px}.aw-lights i{width:10px;height:10px;border-radius:50%;background:#FF5F57}.aw-lights i:nth-child(2){background:#FEBC2E}.aw-lights i:nth-child(3){background:#28C840}
 .aw-in{padding:8px 18px 16px}
 .aw-head{display:flex;justify-content:space-between;align-items:flex-start}
 .aw-head b{display:block;font-size:15px;font-weight:600}.aw-head small{font-size:10.5px;color:#6B6B70}
-.aw-nav{display:flex;gap:4px}.aw-nav span{height:22px;min-width:22px;padding:0 7px;display:grid;place-items:center;border-radius:6px;font-size:10px;font-weight:500;background:rgba(255,255,255,.6);box-shadow:0 0 0 .5px rgba(0,0,0,.1)}
+.aw-nav{display:flex;padding:2px;border-radius:99px;background:rgba(255,255,255,.7);box-shadow:0 0 0 .5px rgba(0,0,0,.1),0 2px 6px rgba(0,0,0,.05)}.aw-nav span{height:20px;min-width:22px;padding:0 7px;display:grid;place-items:center;border-radius:99px;font-size:10px;font-weight:500}.aw-nav span:nth-child(2){background:rgba(0,0,0,.05)}
 .aw-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
-.aw-stats div{border-radius:8px;padding:7px 8px;background:rgba(255,255,255,.55);box-shadow:0 0 0 .5px rgba(0,0,0,.08);min-height:44px}
+.aw-stats div{border-radius:10px;padding:7px 8px;background:rgba(255,255,255,.55);box-shadow:0 0 0 .5px rgba(0,0,0,.08);min-height:44px}
 .aw-stats small{display:block;font-size:9px;color:#6B6B70}.aw-stats b{display:block;font-size:12px;font-weight:600;white-space:nowrap}.aw-stats em{font-style:normal;font-size:8px;color:#8A8A90;white-space:nowrap}
 .aw-h{margin:12px 0 6px;font-size:10px;font-weight:600}
 .aw-chart{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;height:84px;align-items:end}
@@ -845,12 +864,12 @@ footer{border-top-color:var(--glass-line)}
 .aw-foot{display:flex;gap:12px;margin-top:10px;font-size:9.5px;color:#6B6B70}
 .aw-foot span{display:inline-flex;align-items:center;gap:3px}.aw-foot svg{width:11px;height:11px}.aw-foot .lock{margin-left:auto;color:#A1A1A6}
 .aw-btns{display:flex;justify-content:space-between;margin-top:10px}
-.aw-btns span{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:6px;font-size:9.5px;font-weight:500;background:rgba(255,255,255,.6);box-shadow:0 0 0 .5px rgba(0,0,0,.1)}
+.aw-btns span{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;border-radius:99px;font-size:9.5px;font-weight:500;background:rgba(255,255,255,.6);box-shadow:0 0 0 .5px rgba(0,0,0,.1)}
 .aw-btns svg{width:11px;height:11px}.aw-btns .del{color:#E5484D}
 .aw-strip{display:flex;align-items:center;gap:var(--sp-3);margin-top:var(--sp-4);padding:var(--sp-3) var(--sp-4);border-radius:12px;background:var(--glass-hi);box-shadow:0 0 0 1px var(--glass-line)}
-.aw-strip .am-ring{width:36px;height:36px}
+.aw-strip .st-disc{position:relative;width:40px;height:40px;flex:none;border-radius:50%;display:grid;place-items:center;background:rgba(14,15,18,.06)}.aw-strip .st-disc .am-ring{position:absolute;inset:-3px;width:46px;height:46px}
 .aw-strip b{display:block;font-size:var(--fs-s);line-height:var(--lh-s);font-weight:600}.aw-strip small{display:block;font-size:var(--fs-m);line-height:var(--lh-m);color:#C2570C}
-.aw-strip>span{margin-left:auto}
+.aw-strip>.mono{margin-left:auto}
 /* keep the section short: show the real window's top half (numbers + week chart) and fade the rest out */
 .aw-in{max-height:300px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 78%,transparent);mask-image:linear-gradient(#000 78%,transparent)}
 .aw-rank,.aw-foot,.aw-btns{display:none}
@@ -890,6 +909,9 @@ footer{border-top-color:var(--glass-line)}
 @media (max-width:640px){.nav .lang{margin-left:auto}.nav .lang+.btn{margin-left:var(--sp-2)}}
 
 html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에 가로 스크롤이 생기지 않게 */
+.steps>div,.fin-notes>div{min-width:0}
+.cmdline{display:block;margin-top:6px;white-space:nowrap;overflow-x:auto;max-width:100%;scrollbar-width:none}
+.cmdline::-webkit-scrollbar{display:none}
 </style>
 </head>
 <body>
@@ -953,7 +975,7 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
 
       <!-- Layerhover dropdown -->
       <!-- Layerhover menu bar panel — same structure as the app (MenuPanel.swift) -->
-      <div class="dd" id="dd" aria-hidden="true">
+      <div class="dd" id="dd" aria-hidden="true" inert>
         <div class="cc" id="ccMain">
           <div class="cc-top">
             <button class="gl big" id="ccStatus" aria-label="Change the menu bar icon">
@@ -970,17 +992,18 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
             <button class="gl ccp" id="restBtn" aria-pressed="false"><i class="disc"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="3" width="2.6" height="10" rx=".8"/><rect x="9.4" y="3" width="2.6" height="10" rx=".8"/></svg></i><span class="tx"><b>Pause</b><small id="restT">Off</small></span></button>
             <button class="gl ccp" id="focusBtn" aria-pressed="false"><i class="disc"><svg class="fr" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" pathLength="100"/></svg><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 1.8h3"/><circle cx="8" cy="9" r="5"/><path d="M8 9V6.4"/></svg></i><span class="tx"><b>Pomodoro</b><small id="focusT">25 min</small></span></button>
           </div>
-          <div class="cc-foot"><button class="gl sm" data-act="set">Settings</button><button class="gl sm circ" aria-label="Quit Layerhover"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 1.8v6"/><path d="M4.4 4.3a5.4 5.4 0 1 0 7.2 0"/></svg></button></div>
+          <div class="cc-foot"><button class="gl sm" data-act="set">Settings</button></div>
         </div>
         <div class="sheet" id="ccSheet">
           <button class="back" id="ccBack"><span>‹</span>Menu Bar Icon</button>
           <hr>
-          <small class="sec">Icon</small>
+          <small class="shd">Icon</small>
           <div class="dd-g" id="ddGrid"></div>
-          <small class="sec">Weather</small>
+          <hr>
+          <small class="shd">Weather</small>
           <div class="dd-wx">
-            <button id="wxA" aria-label="Weather"><i class="disc"><span class="mk still" data-m="wx-clear"></span></i><span class="t">Weather</span></button>
-            <button id="wxB" aria-label="Weather and temperature"><i class="disc"><span class="mk still" data-m="wx-clear"></span></i><span class="t">Weather + Temp</span><b>20°</b></button>
+            <button id="wxA" aria-label="Weather"><i class="disc"><span class="mk still" data-m="wx-partly"></span></i><span class="t">Weather</span><span class="tr"><span class="mk still" data-m="wx-clear"></span></span></button>
+            <button id="wxB" aria-label="Weather and temperature"><i class="disc"><span class="mk still" data-m="wx-partly"></span></i><span class="t">Weather + Temp</span><span class="tr"><span class="mk still" data-m="wx-clear"></span>20°</span></button>
           </div>
         </div>
       </div>
@@ -1046,13 +1069,23 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
 
             <!-- activity window -->
             <div class="act" id="act" aria-hidden="true">
-              <div class="act-bar"><span class="lights"><i></i><i></i><i></i></span><span class="ttl">Activity</span></div>
+              <div class="act-bar"><span class="lights"><i></i><i></i><i></i></span><span class="ttl">Activity</span><span class="ex">Example</span></div>
               <div class="act-in">
-                <div class="act-top"><div><small>This week in Figma</small><div class="tot" id="actTot">0 min</div><small>Figma in front and you were active</small></div><span class="ex">Example</span></div>
+                <div class="act-top"><div><b class="h">This week in Figma</b><small>2026-11-16 ~ 2026-11-22</small></div>
+                  <span class="seg"><i>‹</i><i>This week</i><i>›</i></span></div>
+                <div class="tiles">
+                  <div><small>Time in Figma</small><b id="actTot">0</b></div>
+                  <div><small>Focus time</small><b id="actFocus">0</b></div>
+                  <div><small>Longest focus</small><b>1 hr 32 min</b></div>
+                  <div><small>Page moves</small><b>214</b><em>Layerhover 168 · manual 46</em></div>
+                </div>
+                <p class="act-h">By day</p>
                 <div class="bars" id="bars"></div>
+                <div class="lg"><span class="f">Focus</span><span class="o">Other</span></div>
+                <p class="act-h">Files</p>
                 <div class="files" id="files"></div>
-                <p class="act-note">Stored only on this Mac and never sent anywhere.</p>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -1137,7 +1170,7 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
         <ul class="krows">
         <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h6.5L15 6v11.5H5z"/><circle cx="9.5" cy="11" r="2.3"/><path d="m11.2 12.7 1.8 1.8"/></svg></span><span class="kt"><b>Find by name</b><small>Click the page name at the bottom left to open the finder. Type a few letters and press <kbd>↩</kbd>.</small></span></li>
         <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="16" height="7" rx="2"/><path d="M5 9.5h4M12.5 9 11.5 10.5 12.5 12M15 9l1 1.5-1 1.5"/></svg></span><span class="kt"><b>Page button, bottom left</b><small>Always shows the current page. Use <kbd>‹</kbd> <kbd>›</kbd> to go back and forward.</small></span></li>
-        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="9" height="10" rx="1.5"/><path d="M9 10h8.5M15 7.5l2.5 2.5-2.5 2.5"/></svg></span><span class="kt"><b>Straight from another app</b><small>Click ‘Figma Page’ in the menu bar to bring Figma forward and open the page you want.</small></span></li>
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="9" height="10" rx="1.5"/><path d="M9 10h8.5M15 7.5l2.5 2.5-2.5 2.5"/></svg></span><span class="kt"><b>Straight from another app</b><small>Click ‘Figma Page’ in the menu bar panel to bring Figma forward and open the page you want.</small></span></li>
         </ul>
         <p class="fnote">Try the shortcuts on this page too. The Figma window in the demo follows along.</p>
       </div>
@@ -1178,7 +1211,7 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
     <div class="fbody">
       <div>
         <ul class="krows">
-        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 1-7.3 9.2"/><path d="M10 6v4l2.5 1.5"/></svg></span><span class="kt"><b>Today fills up like a clock</b><small>The ring at the top of the menu bar panel fills with today’s time in Figma. Six hours is a full turn.</small></span></li>
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 1-7.3 9.2"/><path d="M10 6v4l2.5 1.5"/></svg></span><span class="kt"><b>Today fills up like a clock</b><small>The round ring in the panel’s top-left tile fills with today’s time in Figma. Six hours is a full turn.</small></span></li>
         <li><span class="fi warm"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17.5a5 5 0 0 0 5-5c0-3-2.5-4.5-3-8-1.5 1.5-2.2 3-2.2 4.5-1-.6-1.6-1.6-1.8-2.7C6.2 7.8 5 9.8 5 12.5a5 5 0 0 0 5 5Z"/></svg></span><span class="kt"><b>Turns orange after a long stretch</b><small>After 50 minutes without a break, the ring and text turn orange to show it’s time to rest.</small></span></li>
         <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 2.5h4"/><circle cx="10" cy="11" r="6"/><path d="M10 11V7.8"/></svg></span><span class="kt"><b>One Pomodoro</b><small>Click Pomodoro in the menu bar panel and 25 minutes start. A sound and a notification tell you when it's done.</small></span></li>
         <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16.5h14"/><rect x="4" y="10" width="2.2" height="5" rx=".6"/><rect x="8" y="6" width="2.2" height="9" rx=".6"/><rect x="12" y="8.5" width="2.2" height="6.5" rx=".6"/></svg></span><span class="kt"><b>Your week in one window</b><small>Look back at time by day and by file. The log is stored only on this Mac.</small></span></li>
@@ -1209,9 +1242,9 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
           </div>
         </div>
         <div class="aw-strip" aria-hidden="true">
-          <svg class="am-ring" viewBox="0 0 50 50"><path class="trk" pathLength="100" d="M25 2H36A12 12 0 0 1 48 14V36A12 12 0 0 1 36 48H14A12 12 0 0 1 2 36V14A12 12 0 0 1 14 2Z"/><path class="day" pathLength="100" d="M25 2H36A12 12 0 0 1 48 14V36A12 12 0 0 1 36 48H14A12 12 0 0 1 2 36V14A12 12 0 0 1 14 2Z"/></svg>
+          <span class="st-disc"><svg class="am-ring" viewBox="0 0 50 50"><path class="trk" pathLength="100" d="M25 2A23 23 0 1 1 25 48A23 23 0 1 1 25 2Z"/><path class="day" pathLength="100" d="M25 2A23 23 0 1 1 25 48A23 23 0 1 1 25 2Z"/></svg><span class="mk ink" data-m="buddha" style="--s:20px"></span></span>
           <div><b>Layerhover</b><small>52 min in focus</small></div>
-          <span class="mono nc">Top of the menu bar panel</span>
+          <span class="mono nc">Menu bar panel · top-left tile</span>
         </div>
       </div>
     </div>
@@ -1249,7 +1282,7 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
       <div class="fin-notes">
         <div><b>Requirements</b><p>macOS 13 or later and the Figma desktop app.</p></div>
         <div><b>First launch</b><p>Turn on Layerhover in System Settings &gt; Privacy &amp; Security &gt; Accessibility.</p></div>
-        <div><b>If you see an “unidentified developer” warning</b><p>Click ‘Open Anyway’, or run <code>xattr -dr com.apple.quarantine /Applications/Layerhover.app</code></p></div>
+        <div><b>If you see an “unidentified developer” warning</b><p>Click ‘Open Anyway’, or run <code class="cmdline">xattr -dr com.apple.quarantine /Applications/Layerhover.app</code></p></div>
       </div>
     </div>
   </div>
@@ -1455,7 +1488,7 @@ document.addEventListener('pointerdown',e=>{if(pal.classList.contains('open')&&!
 
 /* ---------- menubar dropdown ---------- */
 const dd=$('#dd'),lh=$('#lh'),ddGrid=$('#ddGrid'),wxA=$('#wxA'),wxB=$('#wxB');let curMark='buddha',wxMode='off',resting=false;
-MARKS.forEach(m=>{const b=document.createElement('button');b.className='gl';b.dataset.mark=m[0];b.setAttribute('aria-label',m[2]);b.append(mark(m[0],''));if(m[0]===curMark)b.classList.add('on');ddGrid.append(b)});
+MARKS.forEach(m=>{const b=document.createElement('button');b.dataset.mark=m[0];b.setAttribute('aria-label',m[2]);b.append(mark(m[0],''));if(m[0]===curMark)b.classList.add('on');ddGrid.append(b)});
 function syncGrid(){$$('button',ddGrid).forEach(b=>b.classList.toggle('on',wxMode==='off'&&b.dataset.mark===curMark));
   wxA.classList.toggle('on',wxMode==='icon');wxB.classList.toggle('on',wxMode==='temp');dd.classList.toggle('wxon',wxMode!=='off')}
 function setMark(id){curMark=id;wxMode='off';lh.classList.remove('wx');syncGrid();paint($('#lhMark'),id);paint($('#ddMark'),id)}
@@ -1469,7 +1502,7 @@ function focusTick(){const left=Math.max(0,Math.round((focusEnd-Date.now())/1000
 function setFocus(on){clearInterval(focusT);dd.classList.toggle('focus',on);$('#focusBtn').setAttribute('aria-pressed',on);
   if(on){focusEnd=Date.now()+FOCUS*1000;focusTick();focusT=setInterval(focusTick,1000)}else $('#focusT').textContent='25 min'}
 function setDetail(on){dd.classList.toggle('detail',on)}
-function openDD(on){if(!on)setDetail(false);if(on&&desk.clientWidth>640){const dr=desk.getBoundingClientRect(),lr=lh.getBoundingClientRect();dd.style.right=Math.max(8,dr.right-lr.right-14)+'px'}dd.classList.toggle('open',on);lh.classList.toggle('on',on);dd.setAttribute('aria-hidden',!on)}
+function openDD(on){if(!on)setDetail(false);if(on&&desk.clientWidth>640){const dr=desk.getBoundingClientRect(),lr=lh.getBoundingClientRect();dd.style.right=Math.max(8,dr.right-(lr.left+lr.width/2)-146)+'px'}dd.classList.toggle('open',on);lh.classList.toggle('on',on);dd.setAttribute('aria-hidden',!on);dd.inert=!on;lh.setAttribute('aria-expanded',on)}
 lh.onclick=e=>{e.stopPropagation();userTook();openDD(!dd.classList.contains('open'))};
 ddGrid.onclick=e=>{const b=e.target.closest('button');if(b)setMark(b.dataset.mark)};
 wxA.onclick=()=>setWx('icon');wxB.onclick=()=>setWx('temp');
@@ -1488,21 +1521,21 @@ const FILES=[['Sample App',200],['Design System',100],['Other',45]];
 let liveSec=0,liveT;
 function fmt(m){m=Math.round(m);const h=Math.floor(m/60),r=m%60;return h?(r?`${h} hr ${r} min`:`${h} hr`):(m?`${r} min`:'< 1 min')}
 function buildAct(){
-  $('#bars').innerHTML=DAYS.map((d,i)=>`<div class="bar${i===todayIdx?' today':''}" data-i="${i}"><span class="tip"></span><i></i><span>${d[0]}</span></div>`).join('');
+  $('#bars').innerHTML=DAYS.map((d,i)=>`<div class="bar${i===todayIdx?' today':''}" data-i="${i}"><span class="tip"></span><span class="stk"><i class="f"></i><i class="o"></i></span><span>${d[0]}</span></div>`).join('');
   $('#files').innerHTML=FILES.map((f,i)=>`<div class="file${i===0?' live':''}"><span class="nm">${f[0]}</span><span class="t" data-f="${i}"></span><span class="m"><i></i></span></div>`).join('');
 }
 buildAct();
 function showAct(on){
   act.classList.toggle('open',on);act.setAttribute('aria-hidden',!on);clearInterval(liveT);
   const bars=$$('.bar',act),fills=$$('.file .m i',act);
-  if(!on){bars.forEach(b=>b.querySelector('i').style.height='0');fills.forEach(f=>f.style.width='0');return}
+  if(!on){bars.forEach(b=>b.querySelector('.stk').style.height='0');fills.forEach(f=>f.style.width='0');return}
   liveSec=0;
   const upd=()=>{const extra=liveSec/60;const vals=DAYS.map((d,i)=>i===todayIdx?50+extra:d[1]);const mx=150;
-    bars.forEach((b,i)=>{const h=Math.max(vals[i]?8:3,vals[i]/mx*86);b.style.setProperty('--h',h+'%');b.querySelector('i').style.height=h+'%';b.querySelector('.tip').textContent=vals[i]?`${DAYS[i][0]} · ${fmt(vals[i])}`:`${DAYS[i][0]} · no activity`});
+    bars.forEach((b,i)=>{const h=Math.max(vals[i]?8:3,vals[i]/mx*86);b.style.setProperty('--h',h+'%');const k=b.querySelector('.stk');k.style.height=h+'%';const fs=vals[i]?0.64:0;k.querySelector('.f').style.height=(fs*100)+'%';k.querySelector('.o').style.height=((vals[i]?1-fs:1)*100)+'%';b.querySelector('.tip').textContent=vals[i]?`${DAYS[i][0]} · ${fmt(vals[i])}`:`${DAYS[i][0]} · no activity`});
     const fv=FILES.map((f,i)=>i===0?f[1]+extra:f[1]);
     fills.forEach((f,i)=>f.style.width=(fv[i]/260*100)+'%');
     $$('.file .t',act).forEach((t,i)=>t.textContent=fmt(fv[i]));
-    $('#actTot').textContent=fmt(vals.reduce((a,b)=>a+b,0));};
+    const tot=vals.reduce((a,b)=>a+b,0);$('#actTot').textContent=fmt(tot);$('#actFocus').textContent=fmt(tot*0.64);};
   setTimeout(upd,60);
   liveT=setInterval(()=>{liveSec+=6;upd()},1000);
 }
@@ -1513,7 +1546,7 @@ document.querySelectorAll('.copy2').forEach(b=>b.onclick=async()=>{try{await nav
 const MODES=['edge','pages','menu','log'];
 const CAP={
  edge:['Edge reveal',TOUCH?'Tap the window’s left edge. The right edge works too.':'Push the pointer to the left edge. The right edge works too.',18000],
- pages:['Figma Page','Click the page name to find, ‹ › to flip.',17000],
+ pages:['Switch pages','Click the page name to find, ‹ › to flip.',17000],
  menu:['Menu bar','Pick an icon or switch to the weather.',15000],
  log:['Activity','This week’s time, file by file. Stored only on this Mac.',10000]};
 let elapsed=0,lastT=performance.now(),paused=RM;

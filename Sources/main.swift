@@ -2133,6 +2133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePanel)
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])   // 우클릭(또는 control-클릭)은 메뉴
         statusItem.button?.toolTip = "Layerhover"
         statusItem.button?.setAccessibilityLabel("Layerhover")
         player = MarkPlayer(library: .shared, button: statusItem.button)
@@ -2436,6 +2437,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func togglePanel() {
+        if let e = NSApp.currentEvent, e.type == .rightMouseUp || e.modifierFlags.contains(.control) {
+            showStatusMenu(); return
+        }
         if panelWindow?.isOpen == true { closePanel(); return }
         guard let button = statusItem.button else { return }
         if panelWindow == nil {
@@ -2738,6 +2742,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func quit() { NSApp.terminate(nil) }
+
+    /// 아이콘 우클릭 메뉴: 패널을 열지 않고 바로 하는 일들과 종료
+    private func showStatusMenu() {
+        closePanel()
+        guard let button = statusItem.button else { return }
+        let menu = NSMenu()
+        func item(_ title: String, _ action: Selector, _ key: String = "", on: Bool = false, enabled: Bool = true) {
+            let i = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            i.target = self; i.state = on ? .on : .off; i.isEnabled = enabled
+            menu.addItem(i)
+        }
+        menu.autoenablesItems = false
+        let trusted = AXIsProcessTrusted()
+        item(L("일시정지", "Pause"), #selector(toggleEnabled), on: !engine.enabled, enabled: trusted)
+        if let end = menuModel.focusEnd {
+            let left = max(0, Int(end.timeIntervalSinceNow))
+            item(L("뽀모도로 멈추기", "Stop Pomodoro") + String(format: " (%d:%02d)", left / 60, left % 60), #selector(toggleFocus))
+        } else {
+            item(L("뽀모도로 시작 (25분)", "Start Pomodoro (25 min)"), #selector(toggleFocus))
+        }
+        menu.addItem(.separator())
+        item(L("Figma 페이지 찾기…", "Find a Figma Page…"), #selector(openPagePalette), enabled: trusted && menuModel.figmaRunning)
+        item(L("작업 기록", "Activity"), #selector(showSummary))
+        menu.addItem(.separator())
+        item(L("설정…", "Settings…"), #selector(showSettings), ",")
+        menu.addItem(.separator())
+        item(L("Layerhover 종료", "Quit Layerhover"), #selector(quit), "q")
+        // 메뉴 막대 기본 메뉴로 띄운다: 잠깐 상태 항목에 메뉴를 달고 누른 뒤 떼면, 배터리·Wi-Fi 메뉴와 같은 자리·모양으로 뜬다
+        statusItem.menu = menu
+        button.performClick(nil)
+        statusItem.menu = nil
+    }
 }
 
 
@@ -2831,6 +2867,7 @@ if let i = args.firstIndex(of: "--render-menu"), args.count > i + 1 {
     m.marks = MarkLibrary.shared.marks
     m.selectedMark = args.firstIndex(of: "--mark").flatMap { args.count > $0 + 1 ? args[$0 + 1] : nil } ?? MarkLibrary.defaultID
     m.enabled = state != "paused"; m.figmaRunning = state != "nofigma"; m.trusted = state != "untrusted"
+    if args.contains("--detail") { m.menuBarDetail = true }   // 메뉴 막대 아이콘 화면
     if args.contains("--focus") { m.focusEnd = Date().addingTimeInterval(14 * 60 + 32) }   // 뽀모도로 도는 중
     if state == "blocked" { m.motionBlocked = L("macOS '동작 줄이기'가 켜져 있어 멈춰 있어요", "Paused because Reduce Motion is on") }
     m.cheer = Cheer.line(trusted: m.trusted, awake: m.enabled, figmaRunning: m.figmaRunning, logging: true, active: 2 * 3600 + 40 * 60, streak: 0, hour: 15)

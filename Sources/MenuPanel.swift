@@ -499,8 +499,8 @@ struct MenuPanelView: View {
             if !model.trusted { permissionCard }
             HStack(spacing: MenuPanelView.gap) { pauseModule; focusModule }
             updateRow
-            // 맨 아래: 작은 알약(설정) + 같은 재질의 작은 동그라미(종료). 제어 센터의 '위젯 편집 · ×' 자리
-            HStack(spacing: 10) { settingsPill; quitCircle }.frame(maxWidth: .infinity)
+            // 맨 아래: 작은 알약(설정) 하나. 제어 센터의 '위젯 편집' 자리. 종료는 아이콘 우클릭 메뉴에 있다
+            settingsPill.frame(maxWidth: .infinity)
         }
         .frame(width: MenuPanelView.width)
     }
@@ -690,18 +690,6 @@ struct MenuPanelView: View {
         .buttonStyle(GlassKeyStyle(shape: pill))
         .keyboardShortcut(",", modifiers: .command)
         .help(L("설정 (⌘,)", "Settings (⌘,)"))
-    }
-
-    /// 설정 오른쪽 같은 높이의 동그라미: 종료
-    private var quitCircle: some View {
-        Button(action: model.actions.quit) {
-            Image(systemName: "power").font(.system(size: 12, weight: .semibold)).foregroundStyle(noteStyle)
-                .frame(width: 28, height: 28)
-        }
-        .buttonStyle(GlassKeyStyle(shape: Circle()))
-        .keyboardShortcut("q")
-        .help(L("Layerhover 종료 (⌘Q)", "Quit Layerhover (⌘Q)"))
-        .accessibilityLabel(L("Layerhover 종료", "Quit Layerhover"))
     }
 
     /// 자동 설치를 꺼 두었을 때만: 받을 수 있는 새 버전 (4단위 알약)
