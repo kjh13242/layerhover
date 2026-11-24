@@ -1000,4 +1000,7 @@ struct WelcomeView: View {
 }
 
 /// 뽀모도로 한 번의 길이: 널리 쓰는 25분
-enum Focus { static let length: TimeInterval = 25 * 60 }
+enum Focus {
+    /// 화면 확인 모드에서만 LAYERHOVER_FOCUS_SECONDS 로 줄여 시험한다
+    static let length: TimeInterval = (uiPreview ? ProcessInfo.processInfo.environment["LAYERHOVER_FOCUS_SECONDS"].flatMap(TimeInterval.init) : nil) ?? 25 * 60
+}

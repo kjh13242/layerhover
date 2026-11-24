@@ -321,14 +321,14 @@ struct SettingsView: View {
                 }
                 .ignoresSafeArea()
             } else if part == .sidebar {
-                // 화면에서는 Finder와 같은 AppKit 옆줄(NSSplitViewItem sidebar) 안에 시스템 목록을 둔다:
-                // 떠 있는 유리 옆줄, 그 안의 신호등 단추, 선택 칸 모양은 macOS가 그린다.
-                List(SettingsPane.allCases, selection: Binding(get: { model.settingsPane },
-                                                               set: { if let p = $0 { model.settingsPane = p } })) { pane in
-                    Label(pane.title, systemImage: pane.symbol).tag(pane)
+                // 화면에서는 Finder와 같은 AppKit 옆줄(NSSplitViewItem sidebar) 안에 둔다: 옆줄 바탕과 신호등 단추는 macOS가 그린다.
+                // 칸은 Finder 옆줄과 같은 치수로 직접 그린다: 신호등 바로 아래(51pt)에서 시작, 높이 32, 고른 칸은 회색 알약, 기호는 강조색.
+                VStack(spacing: 0) {
+                    ForEach(SettingsPane.allCases) { pane in finderRow(pane) }
+                    Spacer(minLength: 0)
                 }
-                .listStyle(.sidebar)
-                .scrollContentBackground(.hidden)   // 목록이 옆줄 바탕을 다시 칠하지 않게 (유리 옆줄이 그대로 보이게)
+                .padding(.horizontal, 10).padding(.top, 51)
+                .ignoresSafeArea()
             } else {
                 detail
             }
@@ -386,24 +386,52 @@ struct SettingsView: View {
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
+    /// Finder 옆줄의 한 칸
+    private func finderRow(_ pane: SettingsPane) -> some View {
+        let selected = model.settingsPane == pane
+        return Button { model.settingsPane = pane } label: {
+            HStack(spacing: 7) {
+                Image(systemName: pane.symbol).font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(Color.accentColor).frame(width: 24)
+                Text(pane.title).font(.system(size: 13, weight: selected ? .semibold : .regular)).lineLimit(1)
+                    .foregroundStyle(Color.primary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 7).frame(height: 32)
+            .background { if selected { RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.1)) } }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(pane.title)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+
     // MARK: 오른쪽
 
     private var detail: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                PaneIcon(pane: model.settingsPane, size: 36)
-                // 제목만 둔다 — 무엇을 정하는 곳인지는 아래 묶음 이름과 그림이 보여 준다 (설명은 마우스를 올리면)
-                Text(model.settingsPane.title).font(.system(size: 17, weight: .bold))
+            if rendering {
+                HStack(spacing: 12) {
+                    PaneIcon(pane: model.settingsPane, size: 36)
+                    // 제목만 둔다 — 무엇을 정하는 곳인지는 아래 묶음 이름과 그림이 보여 준다 (설명은 마우스를 올리면)
+                    Text(model.settingsPane.title).font(.system(size: 17, weight: .bold))
+                        .help(model.settingsPane.subtitle)
+                }
+                .padding(.horizontal, 28).padding(.top, 32).padding(.bottom, 20)
+            } else {
+                // 화면의 창: 제목은 Finder의 도구 막대 제목처럼 신호등 단추와 같은 줄(높이 52)에 둔다
+                Text(model.settingsPane.title).font(.system(size: 15, weight: .bold))
                     .help(model.settingsPane.subtitle)
+                    .padding(.horizontal, 28).frame(height: 52)
             }
-            .padding(.horizontal, 28).padding(.top, rendering ? 32 : 4).padding(.bottom, 20)
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) { pane }
-                    .padding(.horizontal, 28).padding(.bottom, 28)
+                    .padding(.horizontal, 28).padding(.top, rendering ? 0 : 8).padding(.bottom, 28)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .ignoresSafeArea(.container, edges: rendering ? [] : .top)
         .background { if rendering { SettingsStyle.detail } }
     }
 

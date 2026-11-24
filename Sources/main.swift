@@ -2224,6 +2224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             if steps.contains("panel") { togglePanel() }
             if steps.contains("settings") { showSettings() }
+            if steps.contains("focus") { toggleFocus() }
             if steps.contains("welcome") { showGuide() }
             if steps.contains("summary") { showSummary() }
         }
@@ -2535,22 +2536,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         RunLoop.main.add(t, forMode: .common)
         focusTimer = t
         // 알림: 처음 한 번만 허락을 묻는다. 허락하지 않아도 소리는 난다.
+        // 허락을 받은 뒤에 예약한다 (처음 켤 때 허락 창이 떠 있는 동안 예약하면 실패한다). 소리는 focusDone 이 내므로 알림은 조용히 둔다.
         let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
-        let c = UNMutableNotificationContent()
-        c.title = L("뽀모도로 끝", "Pomodoro done")
-        c.body = L("25분 집중했어요. 잠깐 쉬어 가세요.", "25 minutes of focus. Take a short break.")
-        c.sound = .default
-        center.add(UNNotificationRequest(identifier: "focus", content: c,
-                                         trigger: UNTimeIntervalNotificationTrigger(timeInterval: Focus.length, repeats: false)))
+        center.delegate = self
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { log("focus notification not allowed"); return }
+            let left = end.timeIntervalSinceNow
+            guard left > 1 else { return }
+            let c = UNMutableNotificationContent()
+            c.title = L("뽀모도로 끝", "Pomodoro done")
+            c.body = L("25분 집중했어요. 잠깐 쉬어 가세요.", "25 minutes of focus. Take a short break.")
+            center.add(UNNotificationRequest(identifier: "focus", content: c,
+                                             trigger: UNTimeIntervalNotificationTrigger(timeInterval: left, repeats: false))) { err in
+                log("focus notification scheduled err=\(err?.localizedDescription ?? "none")")
+            }
+        }
         log("focus started")
     }
 
     private func focusDone() {
         focusTimer = nil
         menuModel.focusEnd = nil
-        NSSound(named: "Glass")?.play()
-        log("focus done")
+        let played = NSSound(named: "Glass")?.play() ?? false
+        log("focus done sound=\(played)")
+        if uiPreview {      // 화면 확인 모드: 알림이 실제로 전달됐는지 기록한다
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                UNUserNotificationCenter.current().getDeliveredNotifications { n in
+                    log("focus delivered=\(n.filter { $0.request.identifier == "focus" }.count)")
+                }
+            }
+        }
     }
 
     func setSpeed(_ s: CollapseSpeed) {
@@ -2938,4 +2953,12 @@ if let i = args.firstIndex(of: "--simulate"), args.count > i + 1 {
     let delegate = AppDelegate()
     application.delegate = delegate
     application.run()
+}
+
+/// 설정 창이 앞에 있을 때(앱이 활성)도 뽀모도로 알림이 보이게 한다
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list])
+    }
 }

@@ -1547,8 +1547,8 @@ const MODES=['edge','pages','menu','log'];
 const CAP={
  edge:['Edge reveal',TOUCH?'Tap the window’s left edge. The right edge works too.':'Push the pointer to the left edge. The right edge works too.',18000],
  pages:['Switch pages','Click the page name to find, ‹ › to flip.',17000],
- menu:['Menu bar','Pick an icon or switch to the weather.',15000],
- log:['Activity','This week’s time, file by file. Stored only on this Mac.',10000]};
+ menu:['Menu bar','Pick an icon or switch to the weather.',21500],
+ log:['Activity','This week’s time, file by file. Stored only on this Mac.',12000]};
 let elapsed=0,lastT=performance.now(),paused=RM;
 let mode='edge';
 function setMode(m,fromUser){
@@ -1615,13 +1615,12 @@ const SCRIPTS={
   for(;;){
    let p=pt(lh);await move(p[0],p[1],900,id);await sleep(200,id);await click(id);openDD(true);await sleep(700,id);
    p=pt($('#ccStatus'),.35,.4);await move(p[0],p[1],700,id);await sleep(300,id);await click(id);setDetail(true);await sleep(600,id);
-   const seq=['crane','wave','lotus','cat','buddha'];
-   for(const m of seq){const b=ddGrid.querySelector(`[data-mark="${m}"]`);p=pt(b);await move(p[0],p[1],520,id);await sleep(160,id);await click(id);setMark(m);await sleep(1100,id)}
+   const seq=['crane','wave','lotus'];
+   for(const m of seq){const b=ddGrid.querySelector(`[data-mark="${m}"]`);p=pt(b);await move(p[0],p[1],520,id);await sleep(160,id);await click(id);setMark(m);await sleep(850,id)}
    p=pt(wxB);await move(p[0],p[1],600,id);await click(id);setWx('temp');await sleep(1800,id);
-   p=pt(wxA);await move(p[0],p[1],500,id);await click(id);setWx('icon');await sleep(1400,id);
    {const b=ddGrid.querySelector('[data-mark="buddha"]');p=pt(b);await move(p[0],p[1],600,id);await click(id);setMark('buddha');await sleep(800,id)}
    p=pt($('#ccBack'));await move(p[0],p[1],600,id);await click(id);setDetail(false);await sleep(700,id);
-   p=pt($('#focusBtn'),.3,.5);await move(p[0],p[1],700,id);await click(id);setFocus(true);await sleep(2600,id);await click(id);setFocus(false);await sleep(600,id);
+   p=pt($('#focusBtn'),.3,.5);await move(p[0],p[1],700,id);await click(id);setFocus(true);await sleep(2200,id);await click(id);setFocus(false);await sleep(600,id);
    const[x,y]=bodyPt(.45,.75);await move(x,y,800,id);await click(id);openDD(false);await sleep(1600,id);
   }},
  async log(id){
