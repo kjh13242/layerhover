@@ -64,14 +64,12 @@ struct SummaryView: View {
                     HStack(spacing: 0) {
                         Button { model.shift(-1) } label: { LHIcon(symbol: "chevron.left").frame(width: 36, height: 32) }
                             .buttonStyle(GlassSegmentStyle())
-                            .help(L("지난주", "Previous week"))
                         Button { model.weekStart = Date(); model.reload() } label: {
                             Text(L("이번 주", "This week")).font(.system(size: 12.5, weight: .medium)).padding(.horizontal, 12).frame(height: 32)
                         }
                         .buttonStyle(GlassSegmentStyle())
                         Button { model.shift(1) } label: { LHIcon(symbol: "chevron.right").frame(width: 36, height: 32) }
                             .buttonStyle(GlassSegmentStyle())
-                            .help(L("다음 주", "Next week"))
                     }
                     .padding(4)
                     .liquidGlass(Capsule())
@@ -102,7 +100,13 @@ struct SummaryView: View {
                     }
                     .chartForegroundStyleScale([L("집중", "Focus"): Color.accentColor,
                                                 L("그 밖의 작업", "Other"): Color.accentColor.opacity(0.35)])
-                    .chartYAxisLabel(L("시간", "hours"))
+                    // 세로축은 소수 시간(1.0·0.5) 대신 '1시간·30분'으로
+                    .chartYAxis {
+                        AxisMarks(position: .trailing) { value in
+                            AxisGridLine()
+                            AxisValueLabel { if let h = value.as(Double.self) { Text(SummaryView.hoursLabel(h)) } }
+                        }
+                    }
                     .frame(height: 170)
                 }
                 .frame(height: 200, alignment: .top)
@@ -117,17 +121,15 @@ struct SummaryView: View {
                 .frame(height: SummaryView.rankingHeight, alignment: .top)
 
                 HStack(spacing: 20) {
-                    stat("arrow.up.forward.app", t.leaves, L("다른 앱으로 넘어간 횟수", "Times you left Figma"))
-                    stat("sidebar.left", t.reveals, L("화면 끝으로 패널을 꺼낸 횟수", "Panel reveals at the edge"))
-                    stat("doc.text.magnifyingglass", t.paletteOpens, L("페이지 찾기 창을 연 횟수", "Times the page finder opened"))
+                    stat("arrow.up.forward.app", t.leaves, L("다른 앱", "Left Figma"), L("다른 앱으로 넘어간 횟수", "Times you left Figma"))
+                    stat("sidebar.left", t.reveals, L("패널 꺼내기", "Edge peeks"), L("화면 끝으로 패널을 꺼낸 횟수", "Panel reveals at the edge"))
+                    stat("doc.text.magnifyingglass", t.paletteOpens, L("페이지 검색", "Page search"), L("페이지 검색 창을 연 횟수", "Times page search opened"))
                     Spacer()
                     HStack(spacing: 4) {
                         LHIcon(symbol: "lock")
                         Text(L("이 Mac에만", "This Mac only"))
                     }
                     .font(.system(size: 11.5)).foregroundStyle(.tertiary)
-                    .help(L("기록은 이 Mac에만 저장되고 밖으로 보내지 않아요. 스스로 돌아보는 용도예요.",
-                            "Stored only on this Mac, never sent anywhere. For your own reflection."))
                 }
                 .frame(height: 36)
 
@@ -154,6 +156,14 @@ struct SummaryView: View {
     static let rows = 5                                   // 순위에 보여 주는 줄 수 (항상 이만큼 자리를 잡아 둔다)
     static let rowHeight: CGFloat = 40
     static let rankingHeight: CGFloat = 28 + CGFloat(rows) * rowHeight
+    /// 그래프 세로축 눈금: 0 · 30분 · 1시간 · 1시간 30분
+    static func hoursLabel(_ hours: Double) -> String {
+        let m = Int((hours * 60).rounded())
+        if m <= 0 { return "0" }
+        let h = m / 60, r = m % 60
+        if h == 0 { return L("\(r)분", "\(r)m") }
+        return r == 0 ? L("\(h)시간", "\(h)h") : L("\(h)시간 \(r)분", "\(h)h \(r)m")
+    }
     static let size = NSSize(width: 700, height: 48 + 44 + 80 + 200 + rankingHeight + 36 + 28 + 18 * 5)
 
     private func weekday(_ date: String) -> String {
@@ -173,17 +183,15 @@ struct SummaryView: View {
         .frame(maxWidth: .infinity, minHeight: 56, maxHeight: 56, alignment: .topLeading)   // 설명 줄을 뺀 만큼 낮춘다
         .padding(12)
         .background(GlassFill(radius: 10))
-        .help(help ?? "")
     }
 
-    /// 아래 줄의 숫자 하나: 아이콘 + 숫자. 무엇의 횟수인지는 마우스를 올리면 나온다.
-    private func stat(_ symbol: String, _ n: Int, _ meaning: String) -> some View {
+    /// 아래 줄의 횟수: 기호 + 짧은 이름 + 횟수 (마우스를 올리지 않아도 뜻을 알게)
+    private func stat(_ symbol: String, _ n: Int, _ name: String, _ meaning: String) -> some View {
         HStack(spacing: 4) {
             LHIcon(symbol: symbol)
-            Text("\(n)").monospacedDigit()
+            Text(L("\(name) \(n)회", "\(name) \(n)")).monospacedDigit()
         }
         .font(.system(size: 12.5)).foregroundStyle(.secondary)
-        .help(meaning)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(meaning) \(n)")
     }

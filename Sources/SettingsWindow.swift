@@ -8,7 +8,7 @@ import SwiftUI
 extension SettingsPane {
     var title: String {
         switch self {
-        case .reveal: return L("패널 펼치기", "Edge Reveal")
+        case .reveal: return L("패널 꺼내기", "Edge Peek")
         case .pages: return L("페이지 이동", "Pages")
         case .general: return L("일반", "General")
         case .about: return L("정보", "About")
@@ -105,9 +105,8 @@ struct SettingRow<Trailing: View>: View {
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                // 설명은 줄 아래에 쓰지 않는다 — 이름과 조절하는 것만 보이고, 설명은 마우스를 올리면 나온다
+                // 설명은 쓰지 않는다 — 이름과 조절하는 것만 보인다 (마우스를 올려도 설명을 띄우지 않는다)
                 Text(title).font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
-                    .help(note ?? "")
                 if let warning {
                     Label(warning, systemImage: "exclamationmark.triangle.fill")
                         .font(.system(size: 11)).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -181,7 +180,7 @@ struct SpeedPreview: View {
         .frame(height: 72)
         .background(GlassFill(radius: 8, lift: 0.6))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .accessibilityLabel(L("펼치고 접히는 속도 미리보기", "Preview of reveal and fold speed"))
+        .accessibilityLabel(L("꺼내고 넣는 속도 미리보기", "Preview of reveal and fold speed"))
     }
 }
 
@@ -232,9 +231,6 @@ struct ChipPlacePicker: View {
         .buttonStyle(.plain)
         .onHover { hover = $0 ? i : (hover == i ? nil : hover) }
         .offset(x: x, y: y)
-        .help([L("왼쪽 아래 · 도구 막대와 같은 줄", "Bottom left, beside the toolbar"),
-               L("왼쪽 위 · 파일 이름 오른쪽", "Top left, next to the file name"),
-               L("가운데 위", "Top center")][i])
         .accessibilityLabel([L("왼쪽 아래", "Bottom left"), L("왼쪽 위", "Top left"), L("가운데 위", "Top center")][i])
         .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
     }
@@ -254,8 +250,7 @@ struct EdgePicker: View {
             Button(action: toggleRight) { edge(on: right, side: .trailing, title: L("속성", "Properties"), enabled: true) }
                 .buttonStyle(.plain)
                 .onHover { hoverRight = $0 }
-                .help(right ? L("오른쪽 끝 끄기", "Turn off the right edge") : L("오른쪽 끝도 쓰기", "Use the right edge too"))
-                .accessibilityLabel(L("오른쪽 끝에서도 펼치기", "Right edge too"))
+                .accessibilityLabel(L("오른쪽 끝에서도 꺼내기", "Right edge too"))
                 .accessibilityAddTraits(right ? [.isButton, .isSelected] : .isButton)
         }
         .padding(4)
@@ -413,15 +408,13 @@ struct SettingsView: View {
             if rendering {
                 HStack(spacing: 12) {
                     PaneIcon(pane: model.settingsPane, size: 36)
-                    // 제목만 둔다 — 무엇을 정하는 곳인지는 아래 묶음 이름과 그림이 보여 준다 (설명은 마우스를 올리면)
+                    // 제목만 둔다 — 무엇을 정하는 곳인지는 아래 묶음 이름과 그림이 보여 준다
                     Text(model.settingsPane.title).font(.system(size: 17, weight: .bold))
-                        .help(model.settingsPane.subtitle)
                 }
                 .padding(.horizontal, 28).padding(.top, 32).padding(.bottom, 20)
             } else {
                 // 화면의 창: 제목은 Finder의 도구 막대 제목처럼 신호등 단추와 같은 줄(높이 52)에 둔다
                 Text(model.settingsPane.title).font(.system(size: 15, weight: .bold))
-                    .help(model.settingsPane.subtitle)
                     .padding(.horizontal, 28).frame(height: 52)
             }
             ScrollView {
@@ -449,25 +442,25 @@ struct SettingsView: View {
     private var revealPane: some View {
         Group {
             SettingsCard(title: L("속도", "Speed"),
-                         footnote: L("느긋하게 두면 마우스가 화면 끝을 스치기만 할 때는 펼쳐지지 않아요.",
+                         footnote: L("느긋하게 두면 마우스가 화면 끝을 스치기만 할 때는 패널이 나오지 않아요.",
                                      "Relaxed keeps panels shut when the pointer only brushes past the edge.")) {
                 SpeedPreview(reveal: model.reveal, collapse: model.collapse).padding(.vertical, 12)
                 CardDivider()
-                SettingRow(title: L("펼칠 때", "Reveal"),
-                           note: [L("화면 끝에 닿자마자 펼쳐요", "Opens the moment the pointer touches the edge"),
-                                  L("끝에 0.06초 머물면 펼쳐요", "Opens after 0.06 s at the edge"),
-                                  L("끝에 0.3초 머물면 펼쳐요", "Opens after 0.3 s at the edge")][model.reveal ?? 1]) {
-                    SettingSegments(options: speeds, selection: model.reveal, label: L("펼칠 때", "Reveal"), action: model.actions.setReveal)
+                SettingRow(title: L("꺼낼 때", "Reveal"),
+                           note: [L("화면 끝에 닿자마자 꺼내요", "Opens the moment the pointer touches the edge"),
+                                  L("끝에 0.06초 머물면 꺼내요", "Opens after 0.06 s at the edge"),
+                                  L("끝에 0.3초 머물면 꺼내요", "Opens after 0.3 s at the edge")][model.reveal ?? 1]) {
+                    SettingSegments(options: speeds, selection: model.reveal, label: L("꺼낼 때", "Reveal"), action: model.actions.setReveal)
                 }
                 CardDivider()
-                SettingRow(title: L("접을 때", "Fold away"),
-                           note: [L("패널을 벗어나는 즉시 접어요", "Folds as soon as the pointer leaves"),
-                                  L("벗어나고 0.12초 뒤 접어요", "Folds 0.12 s after the pointer leaves"),
-                                  L("벗어나고 0.4초 뒤 접어요", "Folds 0.4 s after the pointer leaves")][model.collapse ?? 1]) {
-                    SettingSegments(options: speeds, selection: model.collapse, label: L("접을 때", "Fold away"), action: model.actions.setCollapse)
+                SettingRow(title: L("넣을 때", "Fold away"),
+                           note: [L("패널을 벗어나는 즉시 넣어요", "Folds as soon as the pointer leaves"),
+                                  L("벗어나고 0.12초 뒤 넣어요", "Folds 0.12 s after the pointer leaves"),
+                                  L("벗어나고 0.4초 뒤 넣어요", "Folds 0.4 s after the pointer leaves")][model.collapse ?? 1]) {
+                    SettingSegments(options: speeds, selection: model.collapse, label: L("넣을 때", "Fold away"), action: model.actions.setCollapse)
                 }
             }
-            SettingsCard(title: L("펼치는 곳", "Where")) {
+            SettingsCard(title: L("꺼내는 곳", "Where")) {
                 EdgePicker(right: model.rightEdge, toggleRight: model.actions.toggleRightEdge)
                 CardDivider()
                 SettingRow(title: L("새 파일은 패널을 접고 시작", "Start new files minimized"),

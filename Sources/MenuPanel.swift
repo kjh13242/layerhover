@@ -291,9 +291,8 @@ final class MenuModel: ObservableObject {
     /// 뽀모도로가 끝나는 때 (nil 이면 쉬는 중)
     @Published var focusEnd: Date?
     @Published var cheer = ""
-    @Published var dayProgress: Double = 0      // 오늘 작업 시간 / 6시간 (아이콘 둘레 링)
-    @Published var restHint = false             // 쉬자고 권할 때: 링이 따뜻한 색
-    @Published var working = false              // 지금 작업이 이어지는 중 (링 끝 점이 숨 쉰다)
+    @Published var todayActive: Double = 0      // 오늘 작업 시간 (초)
+    @Published var streak: Double = 0           // 쉬지 않고 이어진 지금 작업 구간 (초)
     @Published var panelOpen = false            // 패널이 화면에 떠 있는 동안만 움직임을 돌린다
     @Published var menuBarDetail = false        // 패널에서 '메뉴 막대' 칸을 펼쳐 세부 설정을 보는 중 (제어 센터의 칸 펼치기)
     @Published var figmaRunning = true
@@ -354,9 +353,9 @@ final class MenuModel: ObservableObject {
 
     var status: (text: String, color: Color) {
         if !trusted { return (L("손쉬운 사용 권한이 필요해요", "Accessibility permission needed"), .orange) }
-        if !enabled { return (L("일시 정지됨", "Paused"), .gray) }
+        if !enabled { return (L("쉬는 중", "Paused"), .gray) }
         if !figmaRunning { return (L("Figma를 기다리는 중", "Waiting for Figma"), .yellow) }
-        return (L("동작 중", "Running"), .green)
+        return (L("작동 중", "Running"), .green)
     }
 }
 
@@ -372,7 +371,7 @@ enum Cheer {
     static func line(trusted: Bool, awake: Bool, figmaRunning: Bool, logging: Bool,
                      active: Double, streak: Double, hour: Int) -> String {
         if !trusted { return L("권한이 필요해요", "Needs permission") }
-        if !awake { return L("일시정지 중", "Paused") }
+        if !awake { return L("쉬는 중", "Paused") }
         if logging {
             if streak >= 90 * 60 { return L("\(duration(streak))째 · 쉬어요", "\(duration(streak)) · take a break") }
             if streak >= 50 * 60 { return L("\(duration(streak))째 집중 중", "\(duration(streak)) in focus") }
@@ -383,66 +382,8 @@ enum Cheer {
         if !figmaRunning { return L("Figma를 기다려요", "Waiting for Figma") }
         return L("준비됐어요", "Ready")
     }
-    /// 쉬자고 권할 때인지 (아이콘 둘레 링이 따뜻한 색으로 바뀐다)
-    static func restHint(active: Double, streak: Double, hour: Int) -> Bool {
-        streak >= 50 * 60 || active >= 6 * 3600 || (hour >= 22 && active > 0)
-    }
-}
-
-/// 오늘 작업 링: 시계처럼 12시에서 시작해 시계 방향으로 차오른다 (6시간 = 한 바퀴).
-/// 지금 작업이 이어지는 동안에는 링 끝의 점이 천천히 숨 쉬듯 밝아졌다 어두워진다 — 시간이 흐르고 있다는 표시.
-/// 링 전체를 깜빡이지는 않는다 (깜빡임은 경고로 읽혀 마음을 급하게 만든다).
-struct DayRing: View {
-    let progress: Double
-    let warm: Bool
-    let live: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// 둥근 네모 둘레를 12시(위 가운데)에서 시작해 시계 방향으로 한 바퀴 도는 길
-    var round = false       // 둥근 아이콘 둘레 (패널 머리): 원을 12시에서 시계 방향으로
-
-    private func outline(_ r: CGRect) -> Path {
-        if round {
-            var p = Path()
-            p.addArc(center: CGPoint(x: r.midX, y: r.midY), radius: min(r.width, r.height) / 2,
-                     startAngle: .degrees(-90), endAngle: .degrees(270), clockwise: false)
-            return p
-        }
-        let c: CGFloat = 14
-        var p = Path()
-        p.move(to: CGPoint(x: r.midX, y: r.minY))
-        p.addLine(to: CGPoint(x: r.maxX - c, y: r.minY))
-        p.addArc(center: CGPoint(x: r.maxX - c, y: r.minY + c), radius: c, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
-        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - c))
-        p.addArc(center: CGPoint(x: r.maxX - c, y: r.maxY - c), radius: c, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
-        p.addLine(to: CGPoint(x: r.minX + c, y: r.maxY))
-        p.addArc(center: CGPoint(x: r.minX + c, y: r.maxY - c), radius: c, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
-        p.addLine(to: CGPoint(x: r.minX, y: r.minY + c))
-        p.addArc(center: CGPoint(x: r.minX + c, y: r.minY + c), radius: c, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
-        p.closeSubpath()
-        return p
-    }
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !live || reduceMotion)) { ctx in
-            Canvas { g, size in
-                let r = CGRect(origin: .zero, size: size).insetBy(dx: 1, dy: 1)
-                let path = outline(r)
-                let color = warm ? Color.orange : Color.primary
-                g.stroke(path, with: .color(Color.primary.opacity(0.08)), lineWidth: 2)                 // 하루 눈금 (바탕 선)
-                let done = path.trimmedPath(from: 0, to: max(0.01, min(1, progress)))
-                g.stroke(done, with: .color(color.opacity(warm ? 0.85 : 0.45)), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                if live, let tip = done.currentPoint {
-                    let t = ctx.date.timeIntervalSinceReferenceDate
-                    let breath = reduceMotion ? 1 : 0.55 + 0.45 * (0.5 + 0.5 * sin(t * 2 * .pi / 2.4))   // 2.4초에 한 번
-                    let d: CGFloat = 5
-                    g.fill(Path(ellipseIn: CGRect(x: tip.x - d / 2, y: tip.y - d / 2, width: d, height: d)),
-                           with: .color(color.opacity(breath)))
-                }
-            }
-        }
-        .accessibilityHidden(true)
-    }
+    /// 쉬지 않고 이만큼 이어지면 쉬어 갈 때 (50분)
+    static let breakAt: Double = 50 * 60
 }
 
 /// 메뉴 막대 패널: 자주 쓰는 것만 담고, 높이가 바뀌지 않는다 (펼치고 접는 부분이 없다). 바탕 없는 유리 조각들로 이뤄진다.
@@ -473,15 +414,17 @@ struct MenuPanelView: View {
     var body: some View {
         // 패널 바탕은 없다: 제어 센터처럼 유리 칸들이 바탕화면 위에 바로 뜬다 (유리 위에 유리를 겹치지 않는다).
         // 왼쪽 위 상태 칸을 누르면 그 칸이 제자리(왼쪽 위 모서리 고정)에서 커져 세부 화면이 되고, 나머지 칸은 흐려지며 사라진다.
-        GlassGroup {
-            ZStack(alignment: .topLeading) {
-                if model.menuBarDetail {
-                    menuBarDetail.transition(.opacity)
-                } else {
-                    grid.transition(.opacity)
-                }
+        // 유리 조각은 하나씩 따로 그린다 (GlassEffectContainer로 묶으면 렌즈가 사라져 뿌옇게 된다).
+        // 칸 둘레와 사이의 뒤 화면은 창이 깐 PanelHalo가 흐린다: 각 조각이 자기 자리를 알린다.
+        ZStack(alignment: .topLeading) {
+            if model.menuBarDetail {
+                menuBarDetail.transition(.opacity)
+            } else {
+                grid.transition(.opacity)
             }
         }
+        .environment(\.lhPanelGlass, true)
+        .coordinateSpace(name: PanelHalo.space)
     }
 
     private func toggleDetail(_ on: Bool) {
@@ -494,10 +437,10 @@ struct MenuPanelView: View {
         VStack(alignment: .leading, spacing: MenuPanelView.gap) {
             HStack(alignment: .top, spacing: MenuPanelView.gap) {
                 statusModule
-                VStack(spacing: MenuPanelView.gap) { pageModule; activityModule }
+                VStack(spacing: MenuPanelView.gap) { pageModule; pauseModule }
             }
             if !model.trusted { permissionCard }
-            HStack(spacing: MenuPanelView.gap) { pauseModule; focusModule }
+            HStack(spacing: MenuPanelView.gap) { activityModule; iconModule }
             updateRow
             // 맨 아래: 작은 알약(설정) 하나. 제어 센터의 '위젯 편집' 자리. 종료는 아이콘 우클릭 메뉴에 있다
             settingsPill.frame(maxWidth: .infinity)
@@ -519,12 +462,16 @@ struct MenuPanelView: View {
         HStack(spacing: 7) {
             disc().frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 13, weight: .bold)).foregroundStyle(titleStyle).lineLimit(1).minimumScaleFactor(0.85)
-                if let note { Text(note).font(.system(size: 12.5)).foregroundStyle(noteStyle).lineLimit(1).minimumScaleFactor(0.8) }
+                Text(title).font(.system(size: 13, weight: .bold)).foregroundStyle(titleStyle).lineLimit(1).minimumScaleFactor(0.9)
+                // 긴 이름은 제어 센터 Wi‑Fi 칸처럼 두 줄로 (잘라 내거나 칸 여백을 넘지 않게)
+                if let note { Text(note).font(.system(size: 12.5)).foregroundStyle(noteStyle).lineLimit(2).minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true) }
             }
-            Spacer(minLength: 0)
+            // 글자 칸 = 동그라미 오른쪽부터 오른쪽 여백 14 앞까지 (Spacer를 두면 간격 7을 한 번 더 먹어 글자가 잘렸다)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.leading, 14).padding(.trailing, 10)
+        // 글자는 양쪽 여백 14 안에만 (오른쪽도 왼쪽과 같게)
+        .padding(.horizontal, 14)
         .frame(width: width, height: MenuPanelView.unit)
         .contentShape(pill)
     }
@@ -534,49 +481,64 @@ struct MenuPanelView: View {
             .overlay(Image(systemName: symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(glyphColor(on)).accessibilityHidden(true))
     }
 
-    /// 2×2 지금 상태 (제어 센터의 '재생 중' 칸 자리): 지금 메뉴 막대 아이콘(둘레에 오늘 작업 링), 이름, 한 줄 상태.
-    /// 누르면 이 칸이 '메뉴 막대 아이콘' 세부 화면으로 커진다. 마우스를 올리면 오른쪽 위에 › 가 나타난다 (제어 센터 Wi‑Fi 칸과 같다).
+    /// 2×2 집중 칸 (제어 센터의 '재생 중' 칸 자리). 누르면 뽀모도로(25분 집중)가 시작되고, 도는 중에 누르면 멈춘다.
+    ///  평소: 쉬지 않고 이어서 일한 시간을 크게, 막대가 50분까지 찬다 (넘으면 주황 · '쉬어 갈 때예요'). 아래는 오늘 작업 시간.
+    ///  집중 중: 남은 시간을 크게, 막대가 줄어든다. 끝나면 소리와 알림.
     private var statusModule: some View {
-        Button { toggleDetail(true) } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: 0) {
-                    ZStack {
-                        Circle().fill(discFill(false))
-                        if model.trusted {
-                            MarkImage(id: shownMark, playing: model.enabled && model.animateMark && model.motionBlocked == nil, size: 26,
-                                      color: model.enabled ? .labelColor : .tertiaryLabelColor)
-                        } else {
-                            LHIcon(symbol: "exclamationmark.triangle.fill", size: LHIcon.s24).foregroundStyle(.orange)
-                        }
-                        // 오늘 작업한 만큼 차오르는 링 (6시간 = 한 바퀴). 쉬자고 권할 때는 따뜻한 색.
-                        if model.trusted && model.enabled && model.dayProgress > 0 {
-                            DayRing(progress: model.dayProgress, warm: model.restHint, live: model.working && model.panelOpen, round: true)
-                                .frame(width: 54, height: 54)
-                        }
-                    }
-                    .frame(width: 48, height: 48)
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold)).foregroundStyle(noteStyle)
-                        .opacity(hoveredRow == "status" ? 1 : 0)
+        let end = model.focusEnd
+        return Button(action: model.actions.toggleFocus) {
+            TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                let left = max(0, end.map { $0.timeIntervalSince(ctx.date) } ?? 0)
+                let running = end != nil && left > 0
+                let logging = model.workLog
+                // 1분도 이어서 일하지 않았으면 '쉬지 않고 0분' 대신 집중 권유(25분)를 보인다
+                let streaking = logging && streakMinutes > 0
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(running || !streaking ? L("집중", "Focus")
+                         : needsBreak ? L("쉬어 갈 때예요", "Time for a break") : L("쉬지 않고", "Without a break"))
+                        .font(.system(size: 12.5, weight: .medium)).foregroundStyle(noteStyle).lineLimit(1).minimumScaleFactor(0.85)
+                    Text(running ? Focus.clock(left) : streaking ? L("\(streakMinutes)분", "\(streakMinutes) min") : L("25분", "25 min"))
+                        .font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()
+                        .foregroundStyle(titleStyle).lineLimit(1).minimumScaleFactor(0.7)
                         .padding(.top, 2)
+                    Spacer(minLength: 0)
+                    if running || streaking {
+                        progressBar(running ? left / Focus.length : min(1, model.streak / Cheer.breakAt),
+                                    color: running ? LH.accent : runColor)
+                    }
+                    if logging {
+                        Text(todayLine).font(.system(size: 12.5)).foregroundStyle(noteStyle).lineLimit(1).minimumScaleFactor(0.85).padding(.top, 9)
+                    }
                 }
-                Spacer(minLength: 0)
-                Text("Layerhover").font(.system(size: 13, weight: .bold)).foregroundStyle(titleStyle).lineLimit(1)
-                Text(model.cheer.isEmpty ? model.status.text : model.cheer)
-                    .font(.system(size: 12.5)).foregroundStyle(noteStyle)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                    .padding(.top, 1)
+                .animation(.smooth(duration: 0.25), value: running)
             }
-            .padding(15)
+            // 제어 센터 '재생 중' 칸 실측: 내용이 왼쪽·위 14에서, 아래 끝은 바닥에서 19
+            .padding(.top, 14).padding(.horizontal, 14).padding(.bottom, 18)
             .frame(width: MenuPanelView.column, height: MenuPanelView.span(2), alignment: .topLeading)
             .contentShape(big)
         }
         .buttonStyle(GlassKeyStyle(shape: big))
-        .matchedGeometryEffect(id: "sheet", in: morph, anchor: .topLeading, isSource: !model.menuBarDetail)
-        .onHover { inside in if inside { hoveredRow = "status" } else if hoveredRow == "status" { hoveredRow = nil } }
-        .animation(.easeOut(duration: 0.12), value: hoveredRow)
-        .help(L("메뉴 막대 아이콘 바꾸기 · 지금: \(shownName)", "Change the menu bar icon · now: \(shownName)"))
-        .accessibilityLabel(L("메뉴 막대 아이콘: \(shownName)", "Menu bar icon: \(shownName)"))
+        .accessibilityLabel(L("집중", "Focus"))
+        .accessibilityValue(end != nil ? L("집중 중", "Focusing")
+                            : !model.workLog ? L("25분", "25 min")
+                            : streakMinutes > 0 ? L("쉬지 않고 \(streakMinutes)분, \(todayLine)", "\(streakMinutes) min without a break, \(todayLine)")
+                            : todayLine)
+    }
+
+    private var streakMinutes: Int { Int(model.streak / 60) }
+    private var needsBreak: Bool { model.streak >= Cheer.breakAt }
+    private var todayLine: String { L("오늘 \(Cheer.duration(model.todayActive))", "\(Cheer.duration(model.todayActive)) today") }
+    private var runColor: Color { needsBreak ? .orange : LH.accent }
+
+    private func progressBar(_ fraction: Double, color: Color) -> some View {
+        GeometryReader { g in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.14))
+                Capsule().fill(color).frame(width: max(5, g.size.width * max(0, min(1, fraction))))
+            }
+        }
+        .frame(height: 5)
+        .accessibilityHidden(true)
     }
 
     private var permissionCard: some View {
@@ -603,23 +565,29 @@ struct MenuPanelView: View {
     private var pageModule: some View {
         let canGo = model.trusted && model.figmaRunning
         return Button(action: model.actions.openPalette) {
-            // 다른 앱을 보다가 Figma의 원하는 페이지로 바로 들어가는 단추 (Figma를 앞으로 가져온 뒤 페이지 찾기 창을 연다)
-            pillLabel(title: L("Figma 페이지", "Figma Page"), note: L("이름으로 찾기", "Find by name")) { symbolDisc("doc.text.magnifyingglass") }
+            // 다른 앱을 보다가 Figma의 원하는 페이지로 바로 들어가는 단추 (Figma를 앞으로 가져온 뒤 페이지 검색 창을 연다)
+            pillLabel(title: "Figma", note: L("페이지 검색", "Find page")) { symbolDisc("doc.text.magnifyingglass") }
                 .opacity(canGo ? 1 : 0.4)
         }
         .buttonStyle(GlassKeyStyle(shape: pill))
         .disabled(!canGo)
-        .help(canGo ? L("Figma를 앞으로 가져와 원하는 페이지를 이름으로 찾아 열어요", "Brings Figma forward and finds a page by name")
-                    : L("Figma가 켜져 있을 때 쓸 수 있어요", "Available while Figma is open"))
-        .accessibilityLabel(L("Figma 페이지로", "Go to a Figma page"))
+        .accessibilityLabel(L("Figma 페이지 검색", "Find a Figma page"))
     }
 
-    private var activityModule: some View {
-        Button(action: model.actions.showSummary) {
-            pillLabel(title: L("작업 기록", "Activity"), note: L("이번 주", "This week")) { symbolDisc("chart.bar.xaxis") }
+    /// 2×1 아이콘: 지금 메뉴 막대에 보이는 아이콘과 '아이콘'. 누르면 이 칸이 '메뉴 막대 아이콘' 세부 화면으로 커진다.
+    private var iconModule: some View {
+        Button { toggleDetail(true) } label: {
+            pillLabel(title: L("아이콘", "Icon"), note: shownName) {
+                ZStack {
+                    Circle().fill(discFill(false))
+                    MarkImage(id: shownMark, playing: model.enabled && model.animateMark && model.motionBlocked == nil, size: 20,
+                              color: model.enabled ? .labelColor : .tertiaryLabelColor)
+                }
+            }
         }
         .buttonStyle(GlassKeyStyle(shape: pill))
-        .help(L("이번 주 Figma 작업 시간을 봐요", "See this week's time in Figma"))
+        .matchedGeometryEffect(id: "sheet", in: morph, anchor: .topLeading, isSource: !model.menuBarDetail)
+        .accessibilityLabel(L("메뉴 막대 아이콘: \(shownName)", "Menu bar icon: \(shownName)"))
     }
 
     /// 메뉴 막대에 지금 보이는 것: 날씨를 켰으면 날씨, 아니면 고른 아이콘
@@ -631,54 +599,32 @@ struct MenuPanelView: View {
         return model.marks.first { $0.id == model.selectedMark }?.name ?? ""
     }
 
-    /// 2×1 일시정지: 켜고 끄는 스위치 대신 제어 센터 칸 (켜면 흰 동그라미 + 파란 기호). 화면 끝에 닿아도 패널이 나오지 않게 잠깐 멈춘다.
+    /// 2×1 패널 꺼내기: 기능 이름 + 지금 상태. 켜져 있는 평소에는 다른 칸과 같은 회색 동그라미 ('켬'),
+    /// 멈춰 두었을 때만 흰 동그라미(+파란 기호)로 눈에 띄게 한다 ('멈춤') — 평소와 다른 상태만 강조한다.
+    /// 끄면 화면 끝에 닿아도 패널이 나오지 않는다.
     private var pauseModule: some View {
-        let paused = !model.enabled
+        let on = model.enabled
         return Button(action: model.actions.toggleEnabled) {
-            pillLabel(title: L("일시정지", "Pause"), note: paused ? L("켬", "On") : L("끔", "Off")) {
-                Circle().fill(discFill(paused))
-                    .overlay(Image(systemName: "pause.fill").font(.system(size: 15, weight: .semibold)).foregroundStyle(glyphColor(paused)))
-                    .animation(.smooth(duration: 0.2), value: paused)
+            pillLabel(title: L("패널 꺼내기", "Edge Peek"), note: on ? L("켬", "On") : L("멈춤", "Paused")) {
+                Circle().fill(discFill(!on))
+                    .overlay(Image(systemName: "sidebar.left").font(.system(size: 15, weight: .semibold)).foregroundStyle(glyphColor(!on)))
+                    .animation(.smooth(duration: 0.2), value: on)
             }
+            .opacity(model.trusted ? 1 : 0.4)   // 권한이 없으면 누를 수 없으니 Figma 칸처럼 흐리게
         }
         .buttonStyle(GlassKeyStyle(shape: pill))
         .disabled(!model.trusted)
-        .help(paused ? L("일시정지 중이에요. 누르면 다시 화면 끝에서 패널이 나와요.", "Paused. Click to bring panels back at the screen edge.")
-                     : L("잠깐 멈춰요. 화면 끝에 닿아도 패널이 나오지 않아요.", "Pause for a while. Panels won't open at the screen edge."))
-        .accessibilityLabel(L("일시정지", "Pause"))
-        .accessibilityValue(paused ? L("켬", "On") : L("끔", "Off"))
+        .accessibilityLabel(L("패널 꺼내기", "Edge Peek"))
+        .accessibilityValue(on ? L("켬", "On") : L("멈춤", "Paused"))
     }
 
-    /// 2×1 뽀모도로: 누르면 25분이 흐르고 끝나면 알린다. 도는 중에 누르면 멈춘다.
-    /// 시간을 고르게 하지 않는다 — 한 번 집중하기에 알맞은 25분 하나만.
-    private var focusModule: some View {
-        let end = model.focusEnd
-        return Button(action: model.actions.toggleFocus) {
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                let left = max(0, end.map { $0.timeIntervalSince(ctx.date) } ?? 0)
-                let running = end != nil && left > 0
-                pillLabel(title: L("뽀모도로", "Pomodoro"),
-                          note: running ? String(format: "%d:%02d", Int(left) / 60, Int(left) % 60) : L("25분", "25 min")) {
-                    ZStack {
-                        Circle().fill(discFill(running))
-                        if running {
-                            // 남은 시간만큼 줄어드는 둘레
-                            Circle().trim(from: 0, to: left / Focus.length)
-                                .stroke(glyphColor(true).opacity(0.85), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                                .rotationEffect(.degrees(-90)).padding(3)
-                        }
-                        Image(systemName: "timer").font(.system(size: 15, weight: .semibold)).foregroundStyle(glyphColor(running))
-                    }
-                    .animation(.smooth(duration: 0.2), value: running)
-                }
-                .monospacedDigit()
-            }
+    /// 2×1 작업 기록: 이번 주 그래프와 파일·페이지별 시간을 여는 칸
+    private var activityModule: some View {
+        Button(action: model.actions.showSummary) {
+            pillLabel(title: L("작업 기록", "Activity"), note: L("이번 주", "This week")) { symbolDisc("chart.bar.xaxis") }
         }
         .buttonStyle(GlassKeyStyle(shape: pill))
-        .help(end == nil ? L("25분 집중해요. 끝나면 알려 드려요.", "Focus for 25 minutes. You'll hear when it's done.")
-                         : L("누르면 멈춰요", "Click to stop"))
-        .accessibilityLabel(L("뽀모도로", "Pomodoro"))
-        .accessibilityValue(end == nil ? L("꺼짐", "Off") : L("진행 중", "Running"))
+        .accessibilityLabel(L("작업 기록", "Activity"))
     }
 
     /// 맨 아래 작은 알약: 설정
@@ -689,7 +635,6 @@ struct MenuPanelView: View {
         }
         .buttonStyle(GlassKeyStyle(shape: pill))
         .keyboardShortcut(",", modifiers: .command)
-        .help(L("설정 (⌘,)", "Settings (⌘,)"))
     }
 
     /// 자동 설치를 꺼 두었을 때만: 받을 수 있는 새 버전 (4단위 알약)
@@ -705,7 +650,6 @@ struct MenuPanelView: View {
                 .contentShape(pill)
             }
             .buttonStyle(GlassKeyStyle(shape: pill))
-            .help(L("받아서 바꿔 끼우고 다시 시작해요", "Downloads, replaces and restarts Layerhover"))
         }
     }
 
@@ -723,7 +667,6 @@ struct MenuPanelView: View {
                 .frame(height: 28).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(L("돌아가기 (esc)", "Back (esc)"))
             detailDivider
             sectionLabel(L("아이콘", "Icon"))
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 6) {
@@ -780,7 +723,6 @@ struct MenuPanelView: View {
         }
         .buttonStyle(.plain)
         .onHover { inside in if inside { hoveredMark = m.id } else if hoveredMark == m.id { hoveredMark = nil } }
-        .help(model.weatherMode > 0 ? L("\(m.name) · 고르면 날씨 대신 이 아이콘이 보여요", "\(m.name) · Choose to show it instead of the weather") : m.name)
         .accessibilityLabel(m.name)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
@@ -812,8 +754,6 @@ struct MenuPanelView: View {
         }
         .buttonStyle(.plain)
         .onHover { inside in if inside { hoveredRow = id } else if hoveredRow == id { hoveredRow = nil } }
-        .help(temp ? L("지금 위치의 날씨를 온도와 함께 보여요", "Weather here, with the temperature")
-                   : L("지금 위치의 날씨를 보여요", "Weather here"))
         .accessibilityLabel(temp ? L("날씨와 온도", "Weather and temperature") : L("날씨", "Weather"))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
@@ -922,9 +862,9 @@ struct WelcomeView: View {
             permissionCard.padding(.top, 16)
 
             VStack(alignment: .leading, spacing: 12) {
-                tip("cursorarrow.motionlines", L("레이어 꺼내기", "Reveal layers"),
-                    L("마우스를 화면 왼쪽 끝에 대면 펼쳐지고, 패널을 벗어나면 접혀요.", "Push the pointer against the left edge. Move off the panel and it folds away."), nil)
-                tip("doc.text.magnifyingglass", L("페이지로 바로 이동", "Jump to a page"),
+                tip("cursorarrow.motionlines", L("패널 꺼내기", "Edge Peek"),
+                    L("화면 왼쪽 끝에 마우스를 대면 나오고, 벗어나면 다시 들어가요.", "Push the pointer against the left edge. Move off the panel and it folds away."), nil)
+                tip("doc.text.magnifyingglass", L("페이지 이동", "Pages"),
                     L("왼쪽 아래 페이지 이름을 눌러 이름으로 찾아 이동해요.", "Click the page name at the bottom left to find a page by name."), nil)
                 tip("arrow.left.arrow.right", L("이전·다음 페이지", "Back and forward"),
                     L("페이지 이름 옆 ‹ › 로 방금 보던 페이지를 오가요.", "Use ‹ › next to the page name to hop between recent pages."), nil)
@@ -934,8 +874,8 @@ struct WelcomeView: View {
             Rectangle().fill(LH.fill(0.08)).frame(height: 1).padding(.vertical, 16)
 
             HStack(spacing: 12) {
-                Text(L("로그인할 때 자동 실행", "Launch at login")).font(.system(size: 12.5))
-                SettingSwitch(isOn: model.launchAtLogin, label: L("로그인할 때 자동 실행", "Launch at login")) { model.setLaunchAtLogin(!model.launchAtLogin) }
+                Text(L("로그인할 때 열기", "Open at login")).font(.system(size: 12.5))
+                SettingSwitch(isOn: model.launchAtLogin, label: L("로그인할 때 열기", "Open at login")) { model.setLaunchAtLogin(!model.launchAtLogin) }
                 Spacer()
                 Button(action: close) {
                     Text(model.trusted ? L("시작하기", "Get Started") : L("닫기", "Close"))
@@ -1003,4 +943,6 @@ struct WelcomeView: View {
 enum Focus {
     /// 화면 확인 모드에서만 LAYERHOVER_FOCUS_SECONDS 로 줄여 시험한다
     static let length: TimeInterval = (uiPreview ? ProcessInfo.processInfo.environment["LAYERHOVER_FOCUS_SECONDS"].flatMap(TimeInterval.init) : nil) ?? 25 * 60
+    /// 남은 시간 14:32
+    static func clock(_ seconds: TimeInterval) -> String { String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60) }
 }

@@ -1301,12 +1301,18 @@ struct FigmaButtonStyle: ButtonStyle {
 /// 메뉴 막대 아이콘 아래에 뜨는 패널 창. 창 자체는 투명하고, 안의 유리 조각들이 바탕화면 위에 바로 뜬다
 /// (시스템 팝오버는 자기 유리 판을 깔아 그 위 조각이 '유리 위의 유리'가 되므로 쓰지 않는다).
 final class MenuPanelWindow: NSPanel {
-    /// 유리 조각의 그림자가 잘리지 않도록 창을 조각보다 넉넉하게 잡는다
-    static let margin = NSEdgeInsets(top: 8, left: 28, bottom: 36, right: 28)
+    /// 유리 조각의 그림자가 잘리지 않도록 창을 조각보다 넉넉하게 잡는다.
+    /// 위 여백은 메뉴 막대와 첫 칸 사이(12)와 같게 해서, 창 위 끝이 메뉴 막대 아래 끝에 닿는다 (칸 둘레 흐림이 거기까지 번진다).
+    static let margin = NSEdgeInsets(top: 12, left: 28, bottom: 36, right: 28)
     /// 메뉴 막대와 첫 유리 칸 사이 (제어 센터와 같다)
     static let gap: CGFloat = 12
     private let model: MenuModel
     private let host: NSHostingView<MenuPanelHost>
+    /// 칸 둘레의 뒤 화면을 흐리는 층 (macOS 26 이상, 시스템 유리일 때만)
+    private let halo = PanelHalo(radius: 6, saturation: nil, expand: 8, feather: 10, dim: 0.11)
+    /// 칸 속만 채도를 올리는 층 (칸 둘레 흐림 위, 유리 아래)
+    private let boost = PanelHalo(radius: 6, saturation: 1.8, expand: 0, feather: 0.6)
+    private var pendingHalo: [HaloShape]?
     private var anchor: NSRect = .zero
     private let onClose: () -> Void
     private(set) var isOpen = false
@@ -1315,9 +1321,11 @@ final class MenuPanelWindow: NSPanel {
         self.model = model
         self.onClose = onClose
         var resize: (CGSize) -> Void = { _ in }
-        host = NSHostingView(rootView: MenuPanelHost(model: model, onSize: { resize($0) }))
+        var haloChanged: ([HaloShape]) -> Void = { _ in }
+        host = NSHostingView(rootView: MenuPanelHost(model: model, onSize: { resize($0) }, onHalo: { haloChanged($0) }))
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         resize = { [weak self] size in self?.place(size) }
+        haloChanged = { [weak self] shapes in self?.haloChanged(shapes) }
         host.sizingOptions = []          // 창 크기는 직접 정한다 (호스트가 창을 제멋대로 키우지 않게)
         isOpaque = false
         backgroundColor = .clear
@@ -1327,8 +1335,44 @@ final class MenuPanelWindow: NSPanel {
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         animationBehavior = .none
-        contentView = host
+        let box = NSView(frame: .zero)
+        box.autoresizesSubviews = true
+        host.autoresizingMask = [.width, .height]
+        halo.autoresizingMask = [.width, .height]
+        boost.autoresizingMask = [.width, .height]
+        if useSystemGlass { box.addSubview(halo); box.addSubview(boost) }
+        box.addSubview(host)
+        contentView = box
         setAccessibilityLabel("Layerhover")
+    }
+
+    /// 칸 자리가 바뀌면 (세부 화면으로 넘어갈 때는 움직이는 동안 자주) 잠깐 모았다가 한 번에 흐림 모양을 다시 만든다
+    private func haloChanged(_ shapes: [HaloShape]) {
+        let scheduled = pendingHalo != nil
+        pendingHalo = shapes
+        guard !scheduled else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+            guard let self, let shapes = self.pendingHalo else { return }
+            self.pendingHalo = nil
+            let m = MenuPanelWindow.margin
+            self.halo.set(shapes: shapes, origin: CGPoint(x: m.left, y: m.top), topFade: m.top)
+            self.boost.set(shapes: shapes, origin: CGPoint(x: m.left, y: m.top), topFade: m.top)
+        }
+    }
+
+    private func fadeHalo(in on: Bool, duration: TimeInterval) {
+        guard useSystemGlass else { return }
+        halo.strip(); boost.strip()
+        // '투명도 줄이기'를 켰으면 뒤 흐림을 쓰지 않는다 (흐림만 남긴 층이 그 설정을 무시하게 되므로)
+        let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency || previewReduceTransparency
+        let on = on && !reduce
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = duration
+            halo.animator().alphaValue = on && halo.usable ? 1 : 0
+            // 칸 속 채도는 어두운 테마의 투명 유리에만 (밝은 테마는 서리 유리 그대로)
+            let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            boost.animator().alphaValue = on && boost.usable && dark ? 1 : 0
+        }
     }
     override var canBecomeKey: Bool { true }
     override func cancelOperation(_ sender: Any?) { onClose() }      // esc
@@ -1346,12 +1390,14 @@ final class MenuPanelWindow: NSPanel {
             guard let self, self.isOpen else { return }
             if !self.isKeyWindow { self.makeKey() }      // 창이 화면에 다 올라온 뒤 한 번 더: esc·⌘,·⌘Q를 받는 창이 되게
             withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { self.model.panelOpen = true }
+            self.fadeHalo(in: true, duration: 0.25)
         }
     }
 
     func close(animated: Bool) {
         isOpen = false
         withAnimation(.easeIn(duration: 0.14)) { model.panelOpen = false }   // 닫힌 패널 안의 움직임(오늘 작업 링의 점)도 멈춘다
+        fadeHalo(in: false, duration: 0.12)
         DispatchQueue.main.asyncAfter(deadline: .now() + (animated ? 0.16 : 0)) { [weak self] in
             guard let self, !self.isOpen else { return }
             self.orderOut(nil)
@@ -1373,7 +1419,9 @@ final class MenuPanelWindow: NSPanel {
         let glassW = size.width - m.left - m.right
         var gx = anchor.midX - MenuPanelView.width / 2
         if vf.width > 0 { gx = min(max(gx, vf.minX + 8), vf.maxX - 8 - max(glassW, MenuPanelView.width)) }
-        let top = (anchor == .zero ? vf.maxY : anchor.minY) - MenuPanelWindow.gap + m.top
+        // 메뉴 막대 아래 끝에서 잰다: 아이콘 단추는 메뉴 막대보다 짧을 수 있다 (노치 있는 화면: 막대 38pt, 단추 아래 끝은 31pt)
+        let barBottom = anchor == .zero ? vf.maxY : min(anchor.minY, vf.maxY < (screen?.frame.maxY ?? vf.maxY) ? vf.maxY : anchor.minY)
+        let top = barBottom - MenuPanelWindow.gap + m.top
         setFrame(NSRect(x: gx - m.left, y: top - size.height, width: size.width, height: size.height), display: true)
     }
 }
@@ -1382,10 +1430,12 @@ final class MenuPanelWindow: NSPanel {
 struct MenuPanelHost: View {
     @ObservedObject var model: MenuModel
     let onSize: (CGSize) -> Void
+    var onHalo: ([HaloShape]) -> Void = { _ in }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         let m = MenuPanelWindow.margin
         MenuPanelView(model: model)
+            .onPreferenceChange(HaloShapesKey.self) { onHalo($0) }
             .scaleEffect(model.panelOpen || reduceMotion ? 1 : 0.94, anchor: .top)
             .opacity(model.panelOpen ? 1 : 0)
             .padding(EdgeInsets(top: m.top, leading: m.left, bottom: m.bottom, trailing: m.right))
@@ -1725,7 +1775,6 @@ struct ChipView: View {
             }
             .buttonStyle(FigmaButtonStyle(style: st))
             .accessibilityLabel(L("페이지로 이동, 지금 \(model.title)", "Go to page, current \(model.title)"))
-            .help((model.agent.active ? model.agent.detail + "\n" : "") + model.title + " — " + L("페이지로 이동", "Go to page"))
             if showArrows {
                 if !showTitle { Spacer(minLength: 0) }
                 Group {
@@ -1766,7 +1815,6 @@ struct ChipView: View {
         .foregroundStyle(enabled ? model.style.text : model.style.disabled)
         .disabled(!enabled)
         .accessibilityLabel(help)
-        .help(help)
     }
 }
 
@@ -2090,6 +2138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // 메뉴 막대 아이콘(Marks.swift)과, 아이콘을 누르면 뜨는 패널(MenuPanel.swift)
     var player: MarkPlayer!
     private var statusTitleKey = ""
+    private var workTick: Timer?
     let menuModel = MenuModel()
     private var panelWindow: MenuPanelWindow?
     /// 패널을 붙이는 보이지 않는 창. 연 순간 메뉴 막대 아이콘 칸 자리에 놓는다.
@@ -2100,6 +2149,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // 화면 확인 모드에서만: LAYERHOVER_APPEARANCE=light|dark 로 테마를 정해 그린다
+        if uiPreview, let a = ProcessInfo.processInfo.environment["LAYERHOVER_APPEARANCE"] {
+            NSApp.appearance = NSAppearance(named: a == "light" ? .aqua : .darkAqua)
+        }
         log("launch v\(version) pid=\(getpid()) trusted=\(AXIsProcessTrusted()) path=\(Bundle.main.bundlePath)")
         migrateFromOldName()   // ActivityLog·설정을 읽기 전에 해야 한다
         defaults.register(defaults: ["enabled": true, "rightEdge": false, "minimizeByDefault": true,
@@ -2223,6 +2276,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 log("preview switch worst=\(String(format: "%.1f", worst))ms restored=\(currentMarkID)")
             }
             if steps.contains("panel") { togglePanel() }
+            if steps.contains("detail") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [self] in
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) { menuModel.menuBarDetail = true }
+                }
+            }
             if steps.contains("settings") { showSettings() }
             if steps.contains("focus") { toggleFocus() }
             if steps.contains("welcome") { showGuide() }
@@ -2344,10 +2402,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         m.cheer = Cheer.line(trusted: m.trusted, awake: m.enabled, figmaRunning: m.figmaRunning, logging: ActivityLog.shared.enabled,
                              active: ActivityLog.shared.todayActive, streak: ActivityLog.shared.currentStreak,
                              hour: Calendar.current.component(.hour, from: Date()))
-        m.dayProgress = min(1, ActivityLog.shared.todayActive / (6 * 3600))
-        m.working = ActivityLog.shared.currentStreak > 0
-        m.restHint = Cheer.restHint(active: ActivityLog.shared.todayActive, streak: ActivityLog.shared.currentStreak,
-                                    hour: Calendar.current.component(.hour, from: Date()))
+        m.todayActive = ActivityLog.shared.todayActive
+        m.streak = ActivityLog.shared.currentStreak
         m.version = version
         m.marks = MarkLibrary.shared.marks
         m.selectedMark = currentMarkID
@@ -2449,6 +2505,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         syncMenuModel()
         ActivityLog.shared.flush()
+        // 열려 있는 동안 큰 칸의 '쉬지 않고 n분'과 오늘 작업 시간을 20초마다 새로 읽는다
+        workTick?.invalidate()
+        let tick = Timer(timeInterval: 20, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.menuModel.todayActive = ActivityLog.shared.todayActive
+            self.menuModel.streak = ActivityLog.shared.currentStreak
+        }
+        RunLoop.main.add(tick, forMode: .common)
+        workTick = tick
         // 기준은 아이콘만 있을 때의 정사각형 칸: 메뉴 막대 칸은 오른쪽 끝이 고정되고 온도가 붙으면 왼쪽으로 늘어나므로,
         // 오른쪽 끝에서 정사각형 한 칸만큼을 잡는다. 온도를 켜고 열든 끄고 열든 패널은 늘 같은 자리다.
         var rect = button.window.map { $0.convertToScreen(button.convert(button.bounds, to: nil)) } ?? .zero
@@ -2489,6 +2554,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func closePanel() {
         guard panelWindow?.isOpen == true else { return }
+        workTick?.invalidate(); workTick = nil
         panelWindow?.close(animated: true)
         statusItem.button?.highlight(false)
         if let m = outsideClick { NSEvent.removeMonitor(m); outsideClick = nil }
@@ -2770,7 +2836,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         menu.autoenablesItems = false
         let trusted = AXIsProcessTrusted()
-        item(L("일시정지", "Pause"), #selector(toggleEnabled), on: !engine.enabled, enabled: trusted)
+        item(L("패널 꺼내기", "Edge Peek"), #selector(toggleEnabled), on: engine.enabled, enabled: trusted)
         if let end = menuModel.focusEnd {
             let left = max(0, Int(end.timeIntervalSinceNow))
             item(L("뽀모도로 멈추기", "Stop Pomodoro") + String(format: " (%d:%02d)", left / 60, left % 60), #selector(toggleFocus))
@@ -2778,7 +2844,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             item(L("뽀모도로 시작 (25분)", "Start Pomodoro (25 min)"), #selector(toggleFocus))
         }
         menu.addItem(.separator())
-        item(L("Figma 페이지 찾기…", "Find a Figma Page…"), #selector(openPagePalette), enabled: trusted && menuModel.figmaRunning)
+        item(L("Figma 페이지 검색…", "Find a Figma Page…"), #selector(openPagePalette), enabled: trusted && menuModel.figmaRunning)
         item(L("작업 기록", "Activity"), #selector(showSummary))
         menu.addItem(.separator())
         item(L("설정…", "Settings…"), #selector(showSettings), ",")
@@ -2886,7 +2952,9 @@ if let i = args.firstIndex(of: "--render-menu"), args.count > i + 1 {
     if args.contains("--focus") { m.focusEnd = Date().addingTimeInterval(14 * 60 + 32) }   // 뽀모도로 도는 중
     if state == "blocked" { m.motionBlocked = L("macOS '동작 줄이기'가 켜져 있어 멈춰 있어요", "Paused because Reduce Motion is on") }
     m.cheer = Cheer.line(trusted: m.trusted, awake: m.enabled, figmaRunning: m.figmaRunning, logging: true, active: 2 * 3600 + 40 * 60, streak: 0, hour: 15)
-    m.dayProgress = (2 * 3600 + 40 * 60) / (6 * 3600); m.working = true
+    // 큰 칸: 오늘 2시간 40분, 쉬지 않고 --streak 분 (기본 35)
+    m.todayActive = 2 * 3600 + 40 * 60
+    m.streak = (args.firstIndex(of: "--streak").flatMap { args.count > $0 + 1 ? Double(args[$0 + 1]) : nil } ?? 35) * 60
     if args.contains("--weather") { m.weatherMode = 2; m.weatherStatus = "4° 맑음 · 오후 12:57에 받음"; m.weatherTemp = 4; MarkLibrary.shared.weatherMark = "wx-clear" }
     if args.contains("--weather-denied") { m.weatherMode = 1; m.weatherStatus = L("위치 권한이 꺼져 있어요", "Location access is off"); m.weatherDenied = true }
     if let s = args.firstIndex(of: "--settings") {

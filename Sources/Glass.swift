@@ -1,7 +1,8 @@
 // 유리 재질 — 앱 전체가 같은 유리를 쓴다.
 //
 // macOS 26 이상: 시스템 Liquid Glass(SwiftUI glassEffect). 뒤 화면을 실제로 굴절시키고(렌즈), 빛이 맺히고,
-//   마우스를 올리거나 누르면 유리가 반응한다(interactive). 여러 조각은 GlassEffectContainer로 묶어 한 번에 그린다.
+//   마우스를 올리거나 누르면 유리가 반응한다(interactive). 조각은 하나씩 따로 그린다:
+//   GlassEffectContainer로 묶으면 렌즈(가장자리 굴절)가 사라지고 뿌연 회색 덩어리가 된다 (2026-11-24 화면 실측).
 // macOS 13–25: 창 뒤를 흐리게 비추는 재질 위에, 같은 물리 모델로 계산한 '유리 두께의 빛'(GlassLight)을 얹는다.
 //
 // 규칙 (Apple Liquid Glass 원칙):
@@ -10,6 +11,7 @@
 //  - 색 유리(tint)는 '고른 것' 하나에만 쓴다.
 
 import AppKit
+import CoreImage
 import SwiftUI
 
 /// 시스템 유리를 쓸 수 있는가. 그림으로 저장할 때(--render-…)는 화면 밖에서 그려 시스템 유리가 안 보이므로 쓰지 않는다.
@@ -17,6 +19,9 @@ let useSystemGlass: Bool = {
     if #available(macOS 26.0, *) { return !args.contains { $0.hasPrefix("--render") } }
     return false
 }()
+/// 화면 확인 모드에서만: LAYERHOVER_REDUCE_TRANSPARENCY=1 이면 '투명도 줄이기'를 켠 것처럼 그린다
+let previewReduceTransparency = ProcessInfo.processInfo.environment["LAYERHOVER_UI_PREVIEW"] == "1"
+    && ProcessInfo.processInfo.environment["LAYERHOVER_REDUCE_TRANSPARENCY"] == "1"
 /// 화면 밖에서 그림으로 저장하는 중 (창 뒤를 비추는 재질도 그려지지 않는다)
 let renderingOffscreen = args.contains { $0.hasPrefix("--render") }
 
@@ -30,11 +35,19 @@ struct LiquidGlass<S: Shape>: ViewModifier {
     var interactive = false
     var hovered = false          // macOS 13–25에서만 쓴다 (시스템 유리는 스스로 반응한다)
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.lhPanelGlass) private var panelGlass
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *), useSystemGlass {
-            // 제어 센터와 같은 유리 (regular): 실측 — 검은 바탕 위 칸 속 밝기 제어 센터 41 · 우리 42. 덧칠한 막이 없다.
-            content.glassEffect(glass, in: shape)
+            // 메뉴 막대 패널(어두운 테마)은 제어 센터처럼 투명한(clear) 유리에 어두운 막(35%)을 한 겹 입힌다:
+            // 가장자리가 밝게 맺히고 굴절하며, 뒤가 흐릿하게 비친다. 서리 낀 regular 유리는 뿌옇게 막혀 보인다.
+            // (2026-11-24 화면 기록과 같은 바탕을 깔고 칸마다 잰 값: 밝은 바탕 145·159·176 ↔ 146·163·167,
+            //  파란 바탕 11·37·144 ↔ 14·36·157)
+            content
+                .background { if clearPanel { shape.fill(Color.black.opacity(0.35)) } }
+                .glassEffect(glass, in: shape)
+                .background { if panelGlass { haloReport } }
         } else {
             content.background { legacy }
         }
@@ -45,7 +58,23 @@ struct LiquidGlass<S: Shape>: ViewModifier {
     @available(macOS 26.0, *)
     private var glass: Glass {
         if let tint { return Glass.clear.tint(tint.opacity(strength)).interactive(interactive) }
+        if clearPanel { return Glass.clear.interactive(interactive) }
         return Glass.regular.interactive(interactive)
+    }
+    /// 패널 안의 색 없는 유리 (어두운 테마): 투명한 유리 + 어두운 막.
+    /// '투명도 줄이기'를 켠 사람에게는 쓰지 않는다: 시스템이 그 설정에 맞춰 그리는 regular 유리를 그대로 둔다 (Apple 지침).
+    private var clearPanel: Bool { panelGlass && tint == nil && scheme == .dark && !reduceTransparency && !previewReduceTransparency }
+
+    /// 이 조각의 자리를 패널 뒤 흐림(PanelHalo)에 알린다
+    private var haloReport: some View {
+        GeometryReader { g in
+            Color.clear.preference(key: HaloShapesKey.self,
+                                   value: [HaloShape(rect: g.frame(in: .named(PanelHalo.space)), radius: cornerRadius(g.size))])
+        }
+    }
+    private func cornerRadius(_ size: CGSize) -> CGFloat {
+        if let r = shape as? RoundedRectangle { return r.cornerSize.width }
+        return min(size.width, size.height) / 2      // 알약, 동그라미
     }
 
     /// macOS 13–25 (그리고 그림 저장): 흐린 재질 + 유리 두께의 빛 + 그림자 (옅은 창 색으로 제어 센터의 서리 낀 밝기에 맞춘다)
@@ -69,19 +98,6 @@ struct LiquidGlass<S: Shape>: ViewModifier {
 extension View {
     func liquidGlass<S: Shape>(_ shape: S, tint: Color? = nil, strength: Double = 0.5, interactive: Bool = false, hovered: Bool = false) -> some View {
         modifier(LiquidGlass(shape: shape, tint: tint, strength: strength, interactive: interactive, hovered: hovered))
-    }
-}
-
-/// 유리 조각들을 한 번에 그리는 묶음 (macOS 26 이상). spacing 안으로 가까워진 조각은 물방울처럼 이어진다.
-struct GlassGroup<Content: View>: View {
-    var spacing: CGFloat = 0
-    @ViewBuilder let content: Content
-    var body: some View {
-        if #available(macOS 26.0, *), useSystemGlass {
-            GlassEffectContainer(spacing: spacing) { content }
-        } else {
-            content
-        }
     }
 }
 
@@ -238,5 +254,152 @@ private struct GlassSegmentBody: View {
             .contentShape(Capsule())
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+// MARK: - 메뉴 막대 패널 뒤 흐림
+
+/// 메뉴 막대 패널 안의 유리인가 (패널에서만: 어두운 테마의 옅은 막, 뒤 흐림 자리 알리기)
+private struct PanelGlassKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var lhPanelGlass: Bool {
+        get { self[PanelGlassKey.self] }
+        set { self[PanelGlassKey.self] = newValue }
+    }
+}
+
+/// 패널의 유리 조각 하나가 차지하는 자리 (PanelHalo 좌표: 패널 내용의 왼쪽 위가 0)
+struct HaloShape: Equatable {
+    var rect: CGRect
+    var radius: CGFloat
+}
+struct HaloShapesKey: PreferenceKey {
+    static let defaultValue: [HaloShape] = []
+    static func reduce(value: inout [HaloShape], nextValue: () -> [HaloShape]) { value.append(contentsOf: nextValue()) }
+}
+
+/// 패널 뒤 흐림: 제어 센터처럼 유리 칸들의 둘레와 사이로 보이는 뒤 화면을 살짝 흐린다. 색은 입히지 않는다.
+/// (화면 기록 실측: 제어 센터는 칸 둘레 약 10pt 안쪽의 뒤 화면을 흐리고, 밝기는 거의 그대로 둔다. 칸 속 유리는 그 흐린 화면을 비춘다.)
+/// NSVisualEffectView에서 흐림 층(backdrop)만 남기고 색 층(fill·tone·바탕화면 색)과 채도 올림을 끈다.
+/// 시스템 구조가 달라 색 층을 끄지 못하면 어두운 얼룩이 되므로, 그때는 아예 보이지 않게 한다.
+final class PanelHalo: NSVisualEffectView {
+    static let space = "lhPanelHalo"
+    let radius: Double                   // 흐림 반경
+    let saturation: Double?              // 채도 (nil 이면 그대로)
+    let expand: CGFloat                  // 칸 둘레로 넓히는 폭
+    let feather: CGFloat                 // 가장자리가 사라지는 폭
+    let dim: CGFloat                     // 어두운 테마에서 흐린 자리를 덮는 검은 막 (0 이면 없음)
+    private(set) var usable = false
+    private var shapes: [HaloShape] = []
+    private var origin: CGPoint = .zero  // 패널 내용의 왼쪽 위 (창 안, 위에서부터)
+    private var topFade: CGFloat = 8     // 창 위 끝 여백: 흐림이 창 끝에서 잘려 보이지 않게 이 폭 안에서 사라진다
+    private var maskedFor: (CGSize, [HaloShape], CGPoint)?
+    private static let ci = CIContext()
+
+    /// 칸 둘레의 흐림: 반경 6, 채도 그대로, 칸 밖 8pt까지 흐리고 10pt에 걸쳐 사라진다.
+    /// 칸 속 채도: 칸 모양 그대로, 같은 반경으로 흐리고 채도를 1.8배 (제어 센터는 파란 바탕 위 칸만 더 선명하고 칸 사이는 그대로다).
+    init(radius: Double, saturation: Double?, expand: CGFloat, feather: CGFloat, dim: CGFloat = 0) {
+        self.radius = radius; self.saturation = saturation; self.expand = expand; self.feather = feather; self.dim = dim
+        super.init(frame: .zero)
+        material = .hudWindow
+        blendingMode = .behindWindow
+        state = .active
+        alphaValue = 0
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func layout() { super.layout(); strip(); updateMask() }
+    override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); strip() }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); strip() }
+
+    func set(shapes: [HaloShape], origin: CGPoint, topFade: CGFloat) {
+        self.shapes = shapes; self.origin = origin; self.topFade = topFade
+        updateMask()
+    }
+
+    /// 색 층을 끄고 흐림만 남긴다
+    func strip() {
+        guard let root = layer else { usable = false; return }
+        var hidFill = false, blurred = false
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        func walk(_ l: CALayer) {
+            switch l.name ?? "" {
+            case "fill", "tone", "desktop tint", "Chameleon":
+                l.isHidden = true
+                if l.name == "fill" {
+                    hidFill = true
+                    // 재질의 색 대신 옅은 검은 막만 (제어 센터는 칸 둘레를 약 10% 어둡게 한다: 밝은 바탕 218 → 194)
+                    if dim > 0 && dark {
+                        l.isHidden = false
+                        l.backgroundColor = NSColor.black.withAlphaComponent(dim).cgColor
+                        l.compositingFilter = nil
+                    }
+                }
+            case "backdrop":
+                // 필터는 복사본을 고쳐 바꿔 끼운다 (원래 필터를 그 자리에서 고치면 화면에 반영되지 않는다: 실측)
+                if var f = l.filters {
+                    if saturation == nil { f.removeAll { "\($0)" == "colorSaturate" } }
+                    for (i, x) in f.enumerated() {
+                        switch "\(x)" {
+                        case "gaussianBlur":
+                            let c = (x as AnyObject).copy() as AnyObject
+                            c.setValue(radius, forKey: "inputRadius")
+                            f[i] = c
+                            blurred = true
+                        case "colorSaturate":
+                            if let s = saturation {
+                                let c = (x as AnyObject).copy() as AnyObject
+                                c.setValue(s, forKey: "inputAmount")
+                                f[i] = c
+                            }
+                        default: break
+                        }
+                    }
+                    l.filters = f
+                }
+            default: break
+            }
+            if String(describing: type(of: l)) == "CAChameleonLayer" { l.isHidden = true }
+            l.sublayers?.forEach(walk)
+        }
+        walk(root)
+        usable = hidFill && blurred
+        if !usable { alphaValue = 0 }
+    }
+
+    /// 칸들을 넓히고 가장자리를 흐린 모양으로 가린다 (창 위 끝으로는 사라지게)
+    private func updateMask() {
+        let size = bounds.size
+        guard size.width > 1, size.height > 1, !shapes.isEmpty else { return }
+        if let m = maskedFor, m.0 == size, m.1 == shapes, m.2 == origin { return }
+        maskedFor = (size, shapes, origin)
+        let scale = window?.backingScaleFactor ?? 2
+        let W = Int(size.width * scale), H = Int(size.height * scale)
+        guard let ctx = CGContext(data: nil, width: W, height: H, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return }
+        ctx.setFillColor(gray: 0, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: W, height: H))
+        ctx.setFillColor(gray: 1, alpha: 1)
+        let e = expand
+        for s in shapes where s.rect.width > 1 && s.rect.height > 1 {
+            let r = s.rect.offsetBy(dx: origin.x, dy: origin.y).insetBy(dx: -e, dy: -e)
+            let cg = CGRect(x: r.minX * scale, y: (size.height - r.maxY) * scale, width: r.width * scale, height: r.height * scale)
+            let rad = min((s.radius + e) * scale, min(cg.width, cg.height) / 2)
+            ctx.addPath(CGPath(roundedRect: cg, cornerWidth: rad, cornerHeight: rad, transform: nil))
+        }
+        ctx.fillPath()
+        guard let base = ctx.makeImage() else { return }
+        let extent = CGRect(x: 0, y: 0, width: W, height: H)
+        var img = CIImage(cgImage: base).clampedToExtent()
+            .applyingGaussianBlur(sigma: Double(feather * scale / 2)).cropped(to: extent)
+        if let ramp = CIFilter(name: "CILinearGradient", parameters: [
+            "inputPoint0": CIVector(x: 0, y: CGFloat(H)), "inputColor0": CIColor.black,
+            "inputPoint1": CIVector(x: 0, y: CGFloat(H) - max(1, topFade * scale)), "inputColor1": CIColor.white,
+        ])?.outputImage?.cropped(to: extent) {
+            img = img.applyingFilter("CIMultiplyCompositing", parameters: [kCIInputBackgroundImageKey: ramp])
+        }
+        img = img.applyingFilter("CIMaskToAlpha")
+        guard let out = PanelHalo.ci.createCGImage(img, from: extent) else { return }
+        maskImage = NSImage(cgImage: out, size: size)
     }
 }
