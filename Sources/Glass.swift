@@ -36,6 +36,7 @@ struct LiquidGlass<S: Shape>: ViewModifier {
     var hovered = false          // macOS 13–25에서만 쓴다 (시스템 유리는 스스로 반응한다)
     @Environment(\.colorScheme) private var scheme
     @Environment(\.lhPanelGlass) private var panelGlass
+    @Environment(\.lhHaloReport) private var haloOn
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     func body(content: Content) -> some View {
@@ -47,7 +48,7 @@ struct LiquidGlass<S: Shape>: ViewModifier {
             content
                 .background { if clearPanel { shape.fill(Color.black.opacity(0.35)) } }
                 .glassEffect(glass, in: shape)
-                .background { if panelGlass { haloReport } }
+                .background { if panelGlass && haloOn { haloReport } }
         } else {
             content.background { legacy }
         }
@@ -239,6 +240,26 @@ private struct GlassKeyBody<S: Shape>: View {
     }
 }
 
+/// 칸 속 동그라미 단추 (켜고 끄기): 누르면 살짝 작아지고 어두워지며, 마우스를 올리면 살짝 밝아진다.
+/// 칸 전체(유리)는 그 아래의 '자세히' 단추가 맡고, 동그라미만 이 단추다 (제어 센터와 같다).
+struct DiscKeyStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { DiscKeyBody(configuration: configuration) }
+}
+
+private struct DiscKeyBody: View {
+    let configuration: ButtonStyle.Configuration
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var enabled
+    var body: some View {
+        configuration.label
+            .brightness(!enabled ? 0 : configuration.isPressed ? -0.1 : hovering ? 0.05 : 0)
+            .scaleEffect(enabled && configuration.isPressed ? 0.92 : 1)
+            .onHover { hovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovering)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+
 /// 유리 알약 하나 안에 든 여러 단추 중 하나 (예: ‹ 이번 주 ›). 알약 전체가 유리 한 조각이고, 단추는 그 속 내용이다.
 struct GlassSegmentStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View { GlassSegmentBody(configuration: configuration) }
@@ -261,10 +282,16 @@ private struct GlassSegmentBody: View {
 
 /// 메뉴 막대 패널 안의 유리인가 (패널에서만: 어두운 테마의 옅은 막, 뒤 흐림 자리 알리기)
 private struct PanelGlassKey: EnvironmentKey { static let defaultValue = false }
+/// 이 유리 조각의 자리를 패널 뒤 흐림에 알릴지 (세부 화면이 다 펼쳐져 가려진 칸들은 알리지 않는다)
+private struct HaloReportKey: EnvironmentKey { static let defaultValue = true }
 extension EnvironmentValues {
     var lhPanelGlass: Bool {
         get { self[PanelGlassKey.self] }
         set { self[PanelGlassKey.self] = newValue }
+    }
+    var lhHaloReport: Bool {
+        get { self[HaloReportKey.self] }
+        set { self[HaloReportKey.self] = newValue }
     }
 }
 
@@ -311,6 +338,32 @@ final class PanelHalo: NSVisualEffectView {
     override func layout() { super.layout(); strip(); updateMask() }
     override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); strip() }
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); strip() }
+    // 오래 쉬었다가 창이 다시 보이면 시스템이 이 재질의 층을 새로 꾸민다: 그때 끈 색 층이 되살아나 칸 둘레가
+    // 불투명한 재질 색으로 한 번 비쳤다. 층을 새로 꾸밀 때마다 바로 다시 끈다.
+    override func updateLayer() { super.updateLayer(); strip() }
+    override func viewDidChangeBackingProperties() { super.viewDidChangeBackingProperties(); strip() }
+
+    /// 색 층이 지금 다 꺼져 있는지 (시스템이 층을 새로 만들어 되살아난 색 층이 있으면 false)
+    var stripped: Bool {
+        guard let root = layer else { return false }
+        var clean = true
+        func walk(_ l: CALayer) {
+            switch l.name ?? "" {
+            case "tone", "desktop tint", "Chameleon": if !l.isHidden { clean = false }
+            case "fill":
+                // 어두운 테마의 칸 둘레는 일부러 옅은 검은 막(dim)으로 남긴다: 그 색 그대로일 때만 깨끗하다
+                if !l.isHidden {
+                    let ours = dim > 0 && l.compositingFilter == nil && l.backgroundColor == NSColor.black.withAlphaComponent(dim).cgColor
+                    if !ours { clean = false }
+                }
+            default: break
+            }
+            if String(describing: type(of: l)) == "CAChameleonLayer" && !l.isHidden { clean = false }
+            l.sublayers?.forEach(walk)
+        }
+        walk(root)
+        return clean
+    }
 
     func set(shapes: [HaloShape], origin: CGPoint, topFade: CGFloat) {
         self.shapes = shapes; self.origin = origin; self.topFade = topFade
@@ -322,47 +375,59 @@ final class PanelHalo: NSVisualEffectView {
         guard let root = layer else { usable = false; return }
         var hidFill = false, blurred = false
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let dimColor = NSColor.black.withAlphaComponent(dim).cgColor
+        // 이미 원하는 상태면 아무것도 건드리지 않는다: 필터를 바꿔 끼우면 시스템이 흐림을 조각조각 새로 그리는 동안
+        // 몇 화면 동안 일부 조각이 걸러지지 않은 채 비쳐, 칸 위에 모서리가 각진 얼룩이 나타났다 사라졌다 (60fps 녹화로 확인).
+        // 바꿀 때도 암묵 애니메이션 없이 한 번에.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         func walk(_ l: CALayer) {
             switch l.name ?? "" {
             case "fill", "tone", "desktop tint", "Chameleon":
-                l.isHidden = true
-                if l.name == "fill" {
-                    hidFill = true
-                    // 재질의 색 대신 옅은 검은 막만 (제어 센터는 칸 둘레를 약 10% 어둡게 한다: 밝은 바탕 218 → 194)
-                    if dim > 0 && dark {
-                        l.isHidden = false
-                        l.backgroundColor = NSColor.black.withAlphaComponent(dim).cgColor
-                        l.compositingFilter = nil
-                    }
+                // 재질의 색 대신 옅은 검은 막만 (제어 센터는 칸 둘레를 약 10% 어둡게 한다: 밝은 바탕 218 → 194)
+                if l.name == "fill" && dim > 0 && dark {
+                    if l.isHidden { l.isHidden = false }
+                    if l.backgroundColor != dimColor { l.backgroundColor = dimColor }
+                    if l.compositingFilter != nil { l.compositingFilter = nil }
+                } else if !l.isHidden {
+                    l.isHidden = true
                 }
+                if l.name == "fill" { hidFill = true }
             case "backdrop":
-                // 필터는 복사본을 고쳐 바꿔 끼운다 (원래 필터를 그 자리에서 고치면 화면에 반영되지 않는다: 실측)
-                if var f = l.filters {
-                    if saturation == nil { f.removeAll { "\($0)" == "colorSaturate" } }
+                // 필터는 복사본을 고쳐 바꿔 끼운다 (원래 필터를 그 자리에서 고치면 화면에 반영되지 않는다: 실측).
+                // 값이 이미 같으면 바꿔 끼우지 않는다.
+                if let current = l.filters {
+                    var f = current, changed = false
+                    if saturation == nil && f.contains(where: { "\($0)" == "colorSaturate" }) {
+                        f.removeAll { "\($0)" == "colorSaturate" }; changed = true
+                    }
                     for (i, x) in f.enumerated() {
                         switch "\(x)" {
                         case "gaussianBlur":
-                            let c = (x as AnyObject).copy() as AnyObject
-                            c.setValue(radius, forKey: "inputRadius")
-                            f[i] = c
                             blurred = true
-                        case "colorSaturate":
-                            if let s = saturation {
+                            if ((x as AnyObject).value(forKey: "inputRadius") as? NSNumber)?.doubleValue != radius {
                                 let c = (x as AnyObject).copy() as AnyObject
-                                c.setValue(s, forKey: "inputAmount")
-                                f[i] = c
+                                c.setValue(radius, forKey: "inputRadius")
+                                f[i] = c; changed = true
+                            }
+                        case "colorSaturate":
+                            if let sat = saturation, ((x as AnyObject).value(forKey: "inputAmount") as? NSNumber)?.doubleValue != sat {
+                                let c = (x as AnyObject).copy() as AnyObject
+                                c.setValue(sat, forKey: "inputAmount")
+                                f[i] = c; changed = true
                             }
                         default: break
                         }
                     }
-                    l.filters = f
+                    if changed { l.filters = f }
                 }
             default: break
             }
-            if String(describing: type(of: l)) == "CAChameleonLayer" { l.isHidden = true }
+            if String(describing: type(of: l)) == "CAChameleonLayer" && !l.isHidden { l.isHidden = true }
             l.sublayers?.forEach(walk)
         }
         walk(root)
+        CATransaction.commit()
         usable = hidFill && blurred
         if !usable { alphaValue = 0 }
     }

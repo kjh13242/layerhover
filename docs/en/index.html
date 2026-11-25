@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Layerhover — Figma panels that appear on hover</title>
-<meta name="description" content="Figma panels fold away on their own and come back when the pointer touches the screen edge. A free macOS app for a wider canvas, with page switching, an activity log and a Pomodoro timer. Unofficial.">
+<meta name="description" content="Figma panels fold away on their own and come back when the pointer touches the screen edge. A free macOS app for a wider canvas, with page switching and an activity log. Unofficial.">
 <meta property="og:title" content="Layerhover — Figma panels that appear on hover">
 <meta property="og:description" content="Figma panels fold away on their own and come back when the pointer touches the screen edge. A free macOS app for a wider canvas.">
 <meta property="og:image" content="https://kjh13242.github.io/layerhover/assets/og.png">
@@ -422,24 +422,54 @@ img{display:block;max-width:100%}
 .cc-col{display:grid;gap:12px}
 .cc-row{display:grid;grid-template-columns:140px 140px;gap:12px;margin-top:12px}
 .dd .gl.big{position:relative;height:140px;border-radius:30px;padding:14px 14px 18px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left;color:#1C1C1E}
-.dd .gl.ccp{height:64px;border-radius:32px;display:flex;align-items:center;gap:7px;padding:0 14px;text-align:left;color:#1C1C1E}
+.dd .gl.ccp{position:relative;width:100%;height:64px;border-radius:32px;display:flex;align-items:center;gap:7px;padding:0 14px;text-align:left;color:#1C1C1E}
+/* 제어 센터 규칙: 동그라미 = 켜고 끄기 (채워지면 켜짐), 이름 쪽 = 자세히. 칸 전체는 자세히 단추, 그 위 같은 자리에 동그라미 단추 */
+.cc-split{position:relative;display:grid}
+.cc-disc{position:absolute;left:14px;top:14px;width:36px;height:36px;border-radius:50%}
+.cc-split:has(.cc-disc:hover) .disc{filter:brightness(1.06)}.cc-split:has(.cc-disc:active) .disc{transform:scale(.92)}
+.dd .ccp .chev{position:absolute;right:14.85px;top:50%;width:5.5px;height:10.5px;margin-top:-5.25px;opacity:0;transition:opacity .12s;background:rgba(28,28,30,.46);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 5.5 10.5'%3E%3Cpath d='M1 1L4.5 5.25L1 9.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 5.5 10.5'%3E%3Cpath d='M1 1L4.5 5.25L1 9.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat}
+.dd .ccp:hover .chev,.dd .ccp.ghov .chev,.cc-split:hover .chev{opacity:1}
+.dd .ccp:hover .tx,.dd .ccp.ghov .tx,.cc-split:hover .tx{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 32.5px),transparent calc(100% - 13.5px));mask-image:linear-gradient(to right,#000 calc(100% - 32.5px),transparent calc(100% - 13.5px))}
 .disc{flex:none;position:relative;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.12);color:#1C1C1E;font-style:normal;transition:background .2s,color .2s}
 .cc .disc>svg:not(.fr){width:18px;height:18px}
-.tx{flex:1;min-width:0}.tx b{display:block;font-size:13px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tx small{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin-top:1px;font-size:12.5px;line-height:1.2;letter-spacing:-.01em;color:rgba(28,28,30,.7);word-break:keep-all;overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto;font-variant-numeric:tabular-nums}
-.big .bt-head,.big .bt-foot{display:block;width:100%}
+.tx{flex:1;min-width:0}.tx b{display:block;font-size:12px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tx small{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin-top:1.5px;font-size:12px;line-height:1.25;color:rgba(28,28,30,.7);word-break:keep-all;overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto;font-variant-numeric:tabular-nums}
+.big .bt-head,.big .bt-foot{position:relative;display:block;width:100%}
 .big .bt-row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:500;color:rgba(28,28,30,.7)}.big .bt-row span,.big .bt-foot small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .big .bt-n{display:block;margin-top:2px;font:700 30px/1.15 ui-rounded,"SF Pro Rounded",var(--mac);letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:#1C1C1E}
-.big .bt-bar{display:block;height:5px;border-radius:3px;background:rgba(0,0,0,.1);overflow:hidden}
-.big .bt-bar i{display:block;height:100%;border-radius:3px;background:#0D99FF;transition:width .6s var(--ease),background .3s}
-.big .bt-foot small{display:block;margin-top:9px;font-size:12.5px;color:rgba(28,28,30,.7)}
-.dd.resting #restBtn .disc{background:#0D99FF;color:#fff}
-.dd.resting #ccIcon .mk{opacity:.35}
+/* 적정 근무시간(하루 8시간) 막대: 칸 바탕이 아래에서부터 차오른다. 8시간을 넘기면 주황 (앱의 dayBar와 같다) */
+.big .bt-lvl{position:absolute;inset:0;border-radius:inherit;overflow:hidden;pointer-events:none}
+.big .bt-lvl i{position:absolute;left:0;right:0;bottom:0;background:rgba(13,153,255,.2);transition:height .6s var(--ease)}
+.big .bt-n small{font-size:17px;font-weight:600;letter-spacing:0}
+.big .bt-foot small{display:block;font-size:12.5px;color:rgba(28,28,30,.7)}
+.dd.logoff .big .bt-n,.dd.logoff .big .bt-lvl{opacity:.4}
+.dd:not(.resting) #restOpen .disc,.dd:not(.logoff) [data-act=log] .disc,.dd:not(.iconoff) #ccIcon .disc{background:#0D99FF;color:#fff}
+.dd:not(.iconoff) #ccIcon .mk.v{color:#fff}
+/* 꺼진 칸의 기호: 왼쪽 위에서 오른쪽 아래로 사선 (macOS의 slash 기호와 같다). 사선 양옆은 기호를 비운다 */
+.dd .disc .gm{display:grid;place-items:center}
+.dd.resting #restOpen .gm{-webkit-mask:linear-gradient(39deg,#000 calc(50% - 2.3px),transparent 0 calc(50% + 2.3px),#000 0);mask:linear-gradient(39deg,#000 calc(50% - 2.3px),transparent 0 calc(50% + 2.3px),#000 0)}
+.dd.logoff [data-act=log] .gm{-webkit-mask:linear-gradient(40deg,#000 calc(50% - 2.3px),transparent 0 calc(50% + 2.3px),#000 0);mask:linear-gradient(40deg,#000 calc(50% - 2.3px),transparent 0 calc(50% + 2.3px),#000 0)}
+.dd.iconoff #ccIcon .gm{-webkit-mask:linear-gradient(45deg,#000 calc(50% - 2.3px),transparent 0 calc(50% + 2.3px),#000 0);mask:linear-gradient(45deg,#000 calc(50% - 2.3px),transparent 0 calc(50% + 2.3px),#000 0)}
+.dd.resting #restOpen .disc::after,.dd.logoff [data-act=log] .disc::after,.dd.iconoff #ccIcon .disc::after{content:"";position:absolute;left:50%;top:50%;width:22px;height:1.5px;margin:-.75px 0 0 -11px;border-radius:1px;background:currentColor;transform:rotate(45deg)}
+.dd.resting #restOpen .disc::after{width:21px;margin-left:-10.5px;transform:rotate(39deg)}
+.dd.logoff [data-act=log] .disc::after{transform:rotate(40deg)}
+.dd.iconoff #ccIcon .disc::after{width:23px;margin-left:-11.5px}
+/* 메뉴 막대 아이콘을 숨기면 그림만 숨는다 (데모에서는 자리를 눌러 패널을 다시 열 수 있게 둔다) */
+.mb .lh.markoff>*{visibility:hidden}
 .cc-foot{display:flex;justify-content:center;margin-top:12px}
 .dd .gl.sm{height:28px;border-radius:14px;padding:0 16px;font-size:12px;font-weight:500;color:rgba(28,28,30,.7)}
 /* the icon sheet: one sheet of glass that grows out of the status tile (307 wide, radius 26), like Control Center's detail views */
-.sheet{display:none;width:307px;border-radius:26px;padding:10px 14px 12px}
-.dd.detail .cc{display:none}
-.dd.detail .sheet{display:block;transform-origin:top left;animation:shIn .34s var(--ease)}
+/* 세부 화면은 첫 화면 위 왼쪽 위에 겹쳐 놓고, 누른 칸 자리에서부터 커진다 (script 의 setDetail) */
+.sheet{display:none;position:absolute;left:0;top:0;width:307px;border-radius:26px;padding:10px 14px 12px}
+.dd.detail #ccSheet,.dd.rdetail #ccReveal{display:block}
+.dd.dopen .cc{visibility:hidden}
+.sheet .shead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:8px;height:34px;font-size:13px;color:#1C1C1E}
+.srow>span:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sseg{display:flex;gap:2px;flex:none;width:186px;padding:2px;border-radius:8px;background:rgba(0,0,0,.06);box-sizing:border-box}.sseg.onoff{width:96px}
+.sseg i{flex:1;min-width:0;height:24px;display:grid;place-items:center;border-radius:6px;font-style:normal;font-size:12px;color:rgba(28,28,30,.6);cursor:pointer;white-space:nowrap}
+.sseg i.on{background:#fff;color:#1C1C1E;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.slink{display:flex;align-items:center;width:calc(100% + 14px);height:30px;margin:0 -7px;padding:0 7px;border-radius:10px;font-size:13px;color:#1C1C1E;text-align:left}
+.slink:hover,.slink.ghov{background:rgba(0,0,0,.06)}
 @keyframes shIn{from{opacity:0;transform:scale(.5)}}
 .sheet .back{display:flex;align-items:center;gap:8px;height:36px;font-size:15px;font-weight:700;color:#1C1C1E;padding:0 4px}
 .sheet .back span{font-size:20px;line-height:1;font-weight:500;margin-top:-2px}
@@ -536,7 +566,7 @@ img{display:block;max-width:100%}
 .wx .note{flex-basis:100%;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--ink-3)}
 
 /* privacy -------------------------------------------------------- */
-.perm{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--ink);margin-top:8px}
+.perm{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--ink);margin-top:8px}
 .perm div{padding:24px 24px 24px 0;border-right:1px solid var(--line)}
 .perm div+div{padding-left:24px}
 .perm div:last-child{border-right:0}
@@ -978,15 +1008,15 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
       <div class="dd" id="dd" aria-hidden="true" inert>
         <div class="cc" id="ccMain">
           <div class="cc-top">
-            <button class="gl big" id="ccStatus" aria-label="Focus" aria-pressed="false"><span class="bt-head"><span class="bt-row"><span id="bigL">Without a break</span></span><b class="bt-n" id="bigN">35 min</b></span><span class="bt-foot"><span class="bt-bar"><i id="bigBar" style="width:70%"></i></span><small>2 hr 40 min today</small></span></button>
+            <button class="gl big" id="ccStatus" aria-label="Today, 2 hr 40 min, 33% of an 8-hour day"><span class="bt-lvl" aria-hidden="true"><i id="bigFill" style="height:33.3%"></i></span><span class="bt-head"><span class="bt-row"><span>Today</span></span><b class="bt-n">2<small>h </small>40<small>m</small></b></span><span class="bt-foot"><small id="bigS">35 min nonstop</small></span></button>
             <div class="cc-col">
-              <button class="gl ccp" data-act="pal"><i class="disc"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4 2.5h5.5L12 5v8.5H4z"/><circle cx="8" cy="9" r="1.8"/><path d="m9.4 10.4 1.4 1.4"/></svg></i><span class="tx"><b>Figma</b><small>Find page</small></span></button>
-              <button class="gl ccp" id="restBtn" aria-pressed="true"><i class="disc"><svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2" width="11" height="10" rx="1.8"/><path d="M5 2v10"/></svg></i><span class="tx"><b>Edge Peek</b><small id="restT">On</small></span></button>
+              <div class="cc-split"><button class="gl ccp" id="restOpen" aria-label="Edge Peek details"><i class="disc"><span class="gm"><svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.5" y="2" width="11" height="10" rx="1.8"/><path d="M5 2v10"/></svg></span></i><span class="tx"><b>Edge Peek</b><small id="restT">On</small></span><i class="chev" aria-hidden="true"></i></button><button class="cc-disc" id="restBtn" aria-pressed="true" aria-label="Edge Peek"></button></div>
+              <div class="cc-split"><button class="gl ccp" data-act="log" aria-label="Activity details"><i class="disc"><span class="gm"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="1.8" height="6" rx=".5"/><rect x="6" y="4" width="1.8" height="9" rx=".5"/><rect x="9" y="6" width="1.8" height="7" rx=".5"/><rect x="12" y="9" width="1.8" height="4" rx=".5"/><rect x="2" y="13.4" width="12" height="1" rx=".5"/></svg></span></i><span class="tx"><b>Activity</b><small id="logT">On</small></span><i class="chev" aria-hidden="true"></i></button><button class="cc-disc" id="logBtn" aria-pressed="true" aria-label="Activity"></button></div>
             </div>
           </div>
           <div class="cc-row">
-            <button class="gl ccp" data-act="log"><i class="disc"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="7" width="1.8" height="6" rx=".5"/><rect x="6" y="4" width="1.8" height="9" rx=".5"/><rect x="9" y="6" width="1.8" height="7" rx=".5"/><rect x="12" y="9" width="1.8" height="4" rx=".5"/><rect x="2" y="13.4" width="12" height="1" rx=".5"/></svg></i><span class="tx"><b>Activity</b><small>This week</small></span></button>
-            <button class="gl ccp" id="ccIcon" aria-label="Change the menu bar icon"><i class="disc"><span class="mk" id="ddMark" data-m="buddha" style="--s:20px"></span></i><span class="tx"><b>Icon</b><small id="ddNm">Pensive Bodhisattva</small></span></button>
+            <button class="gl ccp" data-act="pal"><i class="disc"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4 2.5h5.5L12 5v8.5H4z"/><circle cx="8" cy="9" r="1.8"/><path d="m9.4 10.4 1.4 1.4"/></svg></i><span class="tx"><b>Figma</b><small>Find page</small></span></button>
+            <div class="cc-split"><button class="gl ccp" id="ccIcon" aria-label="Icon details"><i class="disc"><span class="gm"><span class="mk" id="ddMark" data-m="buddha" style="--s:20px"></span></span></i><span class="tx"><b>Icon</b><small id="ddNm">Pensive Bodhisattva</small></span><i class="chev" aria-hidden="true"></i></button><button class="cc-disc" id="iconBtn" aria-pressed="true" aria-label="Icon"></button></div>
           </div>
           <div class="cc-foot"><button class="gl sm" data-act="set">Settings</button></div>
         </div>
@@ -1001,6 +1031,19 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
             <button id="wxA" aria-label="Weather"><i class="disc"><span class="mk still" data-m="wx-partly"></span></i><span class="t">Weather</span><span class="tr"><span class="mk still" data-m="wx-clear"></span></span></button>
             <button id="wxB" aria-label="Weather and temperature"><i class="disc"><span class="mk still" data-m="wx-partly"></span></i><span class="t">Weather + Temp</span><span class="tr"><span class="mk still" data-m="wx-clear"></span>20°</span></button>
           </div>
+        </div>
+        <div class="sheet" id="ccReveal">
+          <div class="shead"><button class="back" id="rvBack"><span>‹</span>Edge Peek</button><span class="sseg onoff" id="rvOn"><i class="on">On</i><i>Off</i></span></div>
+          <hr>
+          <small class="shd">Speed</small>
+          <div class="srow"><span>Reveal</span><span class="sseg"><i>Instant</i><i class="on">Normal</i><i>Relaxed</i></span></div>
+          <div class="srow"><span>Fold away</span><span class="sseg"><i>Instant</i><i class="on">Normal</i><i>Relaxed</i></span></div>
+          <hr>
+          <small class="shd">Where</small>
+          <div class="srow"><span>Right edge · Properties</span><span class="sseg onoff" id="rvRight"><i class="on">On</i><i>Off</i></span></div>
+          <div class="srow"><span>Start new files minimized</span><span class="sseg onoff"><i class="on">On</i><i>Off</i></span></div>
+          <hr>
+          <button class="slink">Edge Peek Settings…</button>
         </div>
       </div>
 
@@ -1068,7 +1111,7 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
               <div class="act-bar"><span class="lights"><i></i><i></i><i></i></span><span class="ttl">Activity</span><span class="ex">Example</span></div>
               <div class="act-in">
                 <div class="act-top"><div><b class="h">This week in Figma</b><small>2026-11-16 ~ 2026-11-22</small></div>
-                  <span class="seg"><i>‹</i><i>This week</i><i>›</i></span></div>
+                  <span class="sseg"><i>‹</i><i>This week</i><i>›</i></span></div>
                 <div class="tiles">
                   <div><small>Time in Figma</small><b id="actTot">0</b></div>
                   <div><small>Focus time</small><b id="actFocus">0</b></div>
@@ -1207,10 +1250,9 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
     <div class="fbody">
       <div>
         <ul class="krows">
-        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 1-7.3 9.2"/><path d="M10 6v4l2.5 1.5"/></svg></span><span class="kt"><b>See how long you’ve gone</b><small>The big tile at the top left of the panel shows how long you’ve worked without a break, and your time today.</small></span></li>
-        <li><span class="fi warm"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17.5a5 5 0 0 0 5-5c0-3-2.5-4.5-3-8-1.5 1.5-2.2 3-2.2 4.5-1-.6-1.6-1.6-1.8-2.7C6.2 7.8 5 9.8 5 12.5a5 5 0 0 0 5 5Z"/></svg></span><span class="kt"><b>Orange after 50 minutes</b><small>After 50 minutes without a break, the bar turns orange and says it’s time for a break.</small></span></li>
-        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 2.5h4"/><circle cx="10" cy="11" r="6"/><path d="M10 11V7.8"/></svg></span><span class="kt"><b>Click for 25 minutes of focus</b><small>Click the big tile and 25 minutes start. A sound and a notification tell you when it's done.</small></span></li>
-        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16.5h14"/><rect x="4" y="10" width="2.2" height="5" rx=".6"/><rect x="8" y="6" width="2.2" height="9" rx=".6"/><rect x="12" y="8.5" width="2.2" height="6.5" rx=".6"/></svg></span><span class="kt"><b>Your week in one window</b><small>Look back at time by day and by file. The log is stored only on this Mac.</small></span></li>
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 1-7.3 9.2"/><path d="M10 6v4l2.5 1.5"/></svg></span><span class="kt"><b>Today’s time, front and center</b><small>The big tile at the top left of the panel shows how long you’ve worked today, and its background fills up toward an 8-hour day.</small></span></li>
+        <li><span class="fi warm"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17.5a5 5 0 0 0 5-5c0-3-2.5-4.5-3-8-1.5 1.5-2.2 3-2.2 4.5-1-.6-1.6-1.6-1.8-2.7C6.2 7.8 5 9.8 5 12.5a5 5 0 0 0 5 5Z"/></svg></span><span class="kt"><b>Orange when it’s time to stop</b><small>After 50 minutes without a break it says it’s time for a break. Past 8 hours the tile fills orange and says that’s enough for today.</small></span></li>
+        <li><span class="fi"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16.5h14"/><rect x="4" y="10" width="2.2" height="5" rx=".6"/><rect x="8" y="6" width="2.2" height="9" rx=".6"/><rect x="12" y="8.5" width="2.2" height="6.5" rx=".6"/></svg></span><span class="kt"><b>Your week in one window</b><small>Click the big tile to look back at time by day and by file. The log is stored only on this Mac.</small></span></li>
         </ul>
         
       </div>
@@ -1238,7 +1280,7 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
           </div>
         </div>
         <div class="aw-strip" aria-hidden="true">
-          <span class="st-disc"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6.5 1.8h3"/><circle cx="8" cy="9" r="5"/><path d="M8 9V6.4"/></svg></span>
+          <span class="st-disc"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2 1.3"/></svg></span>
           <div><b>Time for a break</b><small>52 min without a break · 2 hr 40 min today</small></div>
           <span class="mono nc">Menu bar panel · top-left tile</span>
         </div>
@@ -1255,7 +1297,6 @@ html{overflow-x:clip}   /* 창 바깥으로 살짝 걸친 장식 Icons 때문에
       <div><span class="when a">Always</span><h3>Accessibility</h3><p>Presses Figma’s own buttons for you. Never reads the screen.</p></div>
       <div><span class="when">Only while weather is on</span><h3>Location</h3><p>Fetches only the weather, at about 1 km precision.</p></div>
       <div><span class="when">Only if already allowed</span><h3>Screen Recording</h3><p>Briefly covers the screen while switching pages. Never asked for, nothing saved.</p></div>
-      <div><span class="when">First Pomodoro</span><h3>Notifications</h3><p>Only to say the 25 minutes are up.</p></div>
     </div>
     <p class="net"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c2 2 2 10.4 0 12.4M8 1.8c-2 2-2 10.4 0 12.4"/></svg>
       <span>Only two things ever leave your Mac: <b>the update check</b>(GitHub, once a day) and <b>the weather request</b>(when weather is on). Your activity log and settings stay on this Mac.</span></p>
@@ -1487,25 +1528,55 @@ const dd=$('#dd'),lh=$('#lh'),ddGrid=$('#ddGrid'),wxA=$('#wxA'),wxB=$('#wxB');le
 MARKS.forEach(m=>{const b=document.createElement('button');b.dataset.mark=m[0];b.setAttribute('aria-label',m[2]);b.append(mark(m[0],''));if(m[0]===curMark)b.classList.add('on');ddGrid.append(b)});
 function syncGrid(){$$('button',ddGrid).forEach(b=>b.classList.toggle('on',wxMode==='off'&&b.dataset.mark===curMark));
   wxA.classList.toggle('on',wxMode==='icon');wxB.classList.toggle('on',wxMode==='temp');dd.classList.toggle('wxon',wxMode!=='off')}
-function setMark(id){curMark=id;wxMode='off';lh.classList.remove('wx');syncGrid();paint($('#lhMark'),id);paint($('#ddMark'),id);$('#ddNm').textContent=(MARKS.find(m=>m[0]===id)||[])[2]||''}
-function setWx(w){wxMode=w;syncGrid();lh.classList.toggle('wx',w==='temp');const m=w==='off'?curMark:'wx-clear';paint($('#lhMark'),m);paint($('#ddMark'),m);$('#ddNm').textContent=w==='off'?((MARKS.find(x=>x[0]===curMark)||[])[2]||''):w==='temp'?'Weather + °':'Weather'}
-function setRest(on){resting=on;dd.classList.toggle('resting',on);$('#restT').textContent=on?'Paused':'On';$('#restBtn').setAttribute('aria-pressed',!on);
+let iconOff=false,nmLast=$('#ddNm').textContent;function showNm(n){nmLast=n;$('#ddNm').textContent=iconOff?'Hidden':n}
+function setIconShown(show){iconOff=!show;dd.classList.toggle('iconoff',iconOff);lh.classList.toggle('markoff',iconOff);$('#iconBtn').setAttribute('aria-pressed',show);showNm(nmLast)}
+function setMark(id){curMark=id;wxMode='off';lh.classList.remove('wx');syncGrid();paint($('#lhMark'),id);paint($('#ddMark'),id);showNm((MARKS.find(m=>m[0]===id)||[])[2]||'')}
+function setWx(w){wxMode=w;syncGrid();lh.classList.toggle('wx',w==='temp');const m=w==='off'?curMark:'wx-clear';paint($('#lhMark'),m);paint($('#ddMark'),m);showNm(w==='off'?((MARKS.find(x=>x[0]===curMark)||[])[2]||''):w==='temp'?'Weather + °':'Weather')}
+function setRest(on){resting=on;dd.classList.toggle('resting',on);$('#restT').textContent=on?'Off':'On';syncSeg($('#rvOn'),on?1:0);$('#restBtn').setAttribute('aria-pressed',!on);
  $('#lhMark').classList.toggle('still',on)}
-/* pomodoro: one fixed 25-minute run, like the app */
-let focusEnd=0,focusT=0;const FOCUS=25*60;
-function focusTick(){const left=Math.max(0,Math.round((focusEnd-Date.now())/1000));$('#bigN').textContent=Math.floor(left/60)+':'+String(left%60).padStart(2,'0');
-  $('#bigBar').style.width=(left/FOCUS*100).toFixed(2)+'%';if(!left)setFocus(false)}
-function setFocus(on){clearInterval(focusT);dd.classList.toggle('focus',on);$('#ccStatus').setAttribute('aria-pressed',on);
-  if(on){$('#bigL').textContent='Focus';focusEnd=Date.now()+FOCUS*1000;focusTick();focusT=setInterval(focusTick,1000)}
-  else{$('#bigL').textContent='Without a break';$('#bigN').textContent='35 min';$('#bigBar').style.width='70%'}}
-function setDetail(on){dd.classList.toggle('detail',on)}
-function openDD(on){if(!on)setDetail(false);if(on&&desk.clientWidth>640){const dr=desk.getBoundingClientRect(),lr=lh.getBoundingClientRect();dd.style.right=Math.max(8,dr.right-(lr.left+lr.width/2)-146)+'px'}dd.classList.toggle('open',on);lh.classList.toggle('on',on);dd.setAttribute('aria-hidden',!on);dd.inert=!on;lh.setAttribute('aria-expanded',on)}
+let detailOpen=null,detailAnim=[];
+// 앱과 같은 곡선: 되튐 없는 용수철(열기 반응 0.34초, 닫기 0.3초)을 그대로 뽑아 linear() 로 준다
+const EASE_OPEN='linear(0,0.0424,0.1381,0.2542,0.3723,0.4823,0.5798,0.6632,0.7329,0.79,0.8363,0.8733,0.9027,0.9257,0.9438,0.9578,0.9687,0.977,0.9835,0.9884,0.9921,0.995,0.9971,0.9988,1)',EASE_CLOSE='linear(0,0.0444,0.1436,0.2632,0.3837,0.4952,0.593,0.6761,0.745,0.801,0.846,0.8817,0.9097,0.9316,0.9486,0.9617,0.9717,0.9794,0.9853,0.9897,0.9931,0.9956,0.9975,0.9989,1)';
+const sheetOf=k=>k==='icon'?$('#ccSheet'):$('#ccReveal'),tileOf=k=>k==='icon'?$('#ccIcon'):$('#restOpen');
+function setDetail(d,instant){
+  if(d===true)d='icon';const to=d||null,from=detailOpen;if(to===from)return;
+  detailAnim.forEach(a=>a.cancel());detailAnim=[];detailOpen=to;
+  const grid=$('#ccMain'),k=to||from,sh=sheetOf(k),tile=tileOf(k);
+  const show=()=>{dd.classList.toggle('detail',to==='icon');dd.classList.toggle('rdetail',to==='reveal')};
+  const still=instant||!dd.classList.contains('open')||matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(to)show();
+  dd.classList.remove('dopen');      // 여닫는 동안에는 첫 화면이 보여야 흐려지고 나타나는 것이 보인다
+  if(still){dd.classList.toggle('dopen',!!to);if(!to)show();return}
+  // 칸 자리 → 세부 화면 자리 (세부 화면 기준의 잘라 내기 값). 데모를 확대해 보여도 맞게 확대 비율로 나눈다
+  const sr=sh.getBoundingClientRect(),tr=tile.getBoundingClientRect(),z=sr.width/sh.offsetWidth||1;
+  const t=(tr.top-sr.top)/z,l=(tr.left-sr.left)/z,r=(sr.right-tr.right)/z,b=(sr.bottom-tr.bottom)/z,rad=tr.height/2/z;
+  const tileClip=`inset(${t}px ${r}px ${b}px ${l}px round ${rad}px)`,fullClip='inset(0px 0px 0px 0px round 26px)';
+  const kids=[...sh.children],opt=ms=>({duration:ms,easing:to?EASE_OPEN:EASE_CLOSE,fill:'both'});
+  if(to){
+    detailAnim.push(sh.animate([{clipPath:tileClip,opacity:0},{opacity:1,offset:.15},{clipPath:fullClip,opacity:1}],opt(420)));
+    kids.forEach(c=>detailAnim.push(c.animate([{opacity:0},{opacity:0,offset:.2},{opacity:1,offset:.7},{opacity:1}],opt(420))));
+    const g=grid.animate([{opacity:1},{opacity:0,offset:.3},{opacity:0}],opt(420));detailAnim.push(g);
+    g.onfinish=()=>{if(detailOpen===to){dd.classList.add('dopen');detailAnim.forEach(a=>a.cancel());detailAnim=[]}};
+  }else{
+    detailAnim.push(sh.animate([{clipPath:fullClip,opacity:1},{opacity:1,offset:.85},{clipPath:tileClip,opacity:0}],opt(380)));
+    kids.forEach(c=>detailAnim.push(c.animate([{opacity:1},{opacity:1,offset:.3},{opacity:0,offset:.8},{opacity:0}],opt(380))));
+    const g=grid.animate([{opacity:0},{opacity:0,offset:.7},{opacity:1}],opt(380));detailAnim.push(g);
+    g.onfinish=()=>{if(detailOpen===null){show();detailAnim.forEach(a=>a.cancel());detailAnim=[]}};
+  }
+}
+function syncSeg(g,k){$$('i',g).forEach((x,n)=>x.classList.toggle('on',n===k))}
+let logOff=false;function setLog(off){logOff=off;dd.classList.toggle('logoff',off);$('#logT').textContent=off?'Off':'On';$('#bigS').textContent=off?'Not recording':'35 min nonstop';$('#logBtn').setAttribute('aria-pressed',!off)}
+function openDD(on){if(!on)setDetail(false,true);if(on&&desk.clientWidth>640){const dr=desk.getBoundingClientRect(),lr=lh.getBoundingClientRect();dd.style.right=Math.max(8,dr.right-(lr.left+lr.width/2)-146)+'px'}dd.classList.toggle('open',on);lh.classList.toggle('on',on);dd.setAttribute('aria-hidden',!on);dd.inert=!on;lh.setAttribute('aria-expanded',on)}
 lh.onclick=e=>{e.stopPropagation();userTook();openDD(!dd.classList.contains('open'))};
 ddGrid.onclick=e=>{const b=e.target.closest('button');if(b)setMark(b.dataset.mark)};
 wxA.onclick=()=>setWx('icon');wxB.onclick=()=>setWx('temp');
-$('#restBtn').onclick=()=>setRest(!resting);
-$('#ccStatus').onclick=()=>setFocus(!dd.classList.contains('focus'));
-$('#ccIcon').onclick=()=>setDetail(true);$('#ccBack').onclick=()=>setDetail(false);
+$('#restBtn').onclick=()=>setRest(!resting);$('#restOpen').onclick=()=>setDetail('reveal');$('#rvBack').onclick=()=>setDetail(false);
+$('#logBtn').onclick=()=>setLog(!logOff);$('#iconBtn').onclick=()=>setIconShown(iconOff);
+/* 패널 꺼내기 세부 화면: 켬·끔은 칸의 동그라미와 같고, 오른쪽 끝은 위 데모의 오른쪽 끝을 실제로 켜고 끈다 */
+$$('#ccReveal .sseg').forEach(g=>g.onclick=e=>{const i=e.target.closest('i');if(!i)return;const k=[...g.children].indexOf(i);
+  if(g.id==='rvOn'){setRest(k===1);return}syncSeg(g,k);if(g.id==='rvRight'){rightOn=k===0;if(!rightOn)clearEdges()}});
+$('#ccStatus').onclick=()=>{openDD(false);setMode('log',true)};
+$('#ccIcon').onclick=()=>setDetail('icon');$('#ccBack').onclick=()=>setDetail(false);
 dd.querySelector('[data-act=pal]').onclick=()=>{openDD(false);setMode('pages',true);openPal(true)};
 dd.querySelector('[data-act=log]').onclick=()=>{openDD(false);setMode('log',true)};
 desk.addEventListener('click',e=>{if(dd.classList.contains('open')&&!dd.contains(e.target)&&!lh.contains(e.target))openDD(false)});
@@ -1514,7 +1585,7 @@ desk.addEventListener('click',e=>{if(dd.classList.contains('open')&&!dd.contains
 const act=$('#act');
 const DAYS=[['Mon',95],['Tue',130],['Wed',60],['Thu',0],['Fri',0],['Sat',0],['Sun',0]];
 const todayIdx=3; // demo "today" = 목
-const FILES=[['Sample App',200],['Design System',100],['Other',45]];
+const FILES=[['Sample App',260],['Design System',140],['Other',45]];
 let liveSec=0,liveT;
 function fmt(m){m=Math.round(m);const h=Math.floor(m/60),r=m%60;return h?(r?`${h} hr ${r} min`:`${h} hr`):(m?`${r} min`:'< 1 min')}
 function buildAct(){
@@ -1527,10 +1598,10 @@ function showAct(on){
   const bars=$$('.bar',act),fills=$$('.file .m i',act);
   if(!on){bars.forEach(b=>b.querySelector('.stk').style.height='0');fills.forEach(f=>f.style.width='0');return}
   liveSec=0;
-  const upd=()=>{const extra=liveSec/60;const vals=DAYS.map((d,i)=>i===todayIdx?50+extra:d[1]);const mx=150;
+  const upd=()=>{const extra=liveSec/60;const vals=DAYS.map((d,i)=>i===todayIdx?160+extra:d[1]);const mx=180;
     bars.forEach((b,i)=>{const h=Math.max(vals[i]?8:3,vals[i]/mx*86);b.style.setProperty('--h',h+'%');const k=b.querySelector('.stk');k.style.height=h+'%';const fs=vals[i]?0.64:0;k.querySelector('.f').style.height=(fs*100)+'%';k.querySelector('.o').style.height=((vals[i]?1-fs:1)*100)+'%';b.querySelector('.tip').textContent=vals[i]?`${DAYS[i][0]} · ${fmt(vals[i])}`:`${DAYS[i][0]} · no activity`});
     const fv=FILES.map((f,i)=>i===0?f[1]+extra:f[1]);
-    fills.forEach((f,i)=>f.style.width=(fv[i]/260*100)+'%');
+    fills.forEach((f,i)=>f.style.width=(fv[i]/300*100)+'%');
     $$('.file .t',act).forEach((t,i)=>t.textContent=fmt(fv[i]));
     const tot=vals.reduce((a,b)=>a+b,0);$('#actTot').textContent=fmt(tot);$('#actFocus').textContent=fmt(tot*0.64);};
   setTimeout(upd,60);
@@ -1544,7 +1615,7 @@ const MODES=['edge','pages','menu','log'];
 const CAP={
  edge:['Edge Peek',TOUCH?'Tap the window’s left edge. The right edge works too.':'Push the pointer to the left edge. The right edge works too.',18000],
  pages:['Switch pages','Click the page name to find, ‹ › to flip.',17000],
- menu:['Menu bar','Pick an icon or switch to the weather.',21500],
+ menu:['Menu bar','Circles turn things on or off; names open details.',28500],
  log:['Activity','This week’s time, file by file. Stored only on this Mac.',12000]};
 let elapsed=0,lastT=performance.now(),paused=RM;
 let mode='edge';
@@ -1611,13 +1682,15 @@ const SCRIPTS={
  async menu(id){
   for(;;){
    let p=pt(lh);await move(p[0],p[1],900,id);await sleep(200,id);await click(id);openDD(true);await sleep(700,id);
-   p=pt($('#ccIcon'),.3,.5);await move(p[0],p[1],700,id);await sleep(300,id);await click(id);setDetail(true);await sleep(600,id);
+   p=pt($('#ccIcon'),.3,.5);await move(p[0],p[1],700,id);await sleep(300,id);await click(id);setDetail('icon');await sleep(600,id);
    const seq=['crane','wave','lotus'];
    for(const m of seq){const b=ddGrid.querySelector(`[data-mark="${m}"]`);p=pt(b);await move(p[0],p[1],520,id);await sleep(160,id);await click(id);setMark(m);await sleep(850,id)}
    p=pt(wxB);await move(p[0],p[1],600,id);await click(id);setWx('temp');await sleep(1800,id);
    {const b=ddGrid.querySelector('[data-mark="buddha"]');p=pt(b);await move(p[0],p[1],600,id);await click(id);setMark('buddha');await sleep(800,id)}
    p=pt($('#ccBack'));await move(p[0],p[1],600,id);await click(id);setDetail(false);await sleep(700,id);
-   p=pt($('#ccStatus'),.45,.45);await move(p[0],p[1],700,id);await click(id);setFocus(true);await sleep(2200,id);await click(id);setFocus(false);await sleep(600,id);
+   p=pt($('#logBtn'));await move(p[0],p[1],650,id);await sleep(250,id);await click(id);setLog(true);await sleep(1000,id);await click(id);setLog(false);await sleep(500,id);
+   p=pt($('#restOpen'),.72,.5);await move(p[0],p[1],650,id);await sleep(350,id);await click(id);setDetail('reveal');await sleep(1800,id);
+   p=pt($('#rvBack'));await move(p[0],p[1],600,id);await click(id);setDetail(false);await sleep(600,id);
    const[x,y]=bodyPt(.45,.75);await move(x,y,800,id);await click(id);openDD(false);await sleep(1600,id);
   }},
  async log(id){

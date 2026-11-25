@@ -74,6 +74,15 @@ func runSelfTests() -> Bool {
     }())
     check("업데이트 버전 비교", Updater.isNewer("1.6.1", than: "1.6.0") && Updater.isNewer("1.10", than: "1.9.9")
           && !Updater.isNewer("1.6.0", than: "1.6.0") && !Updater.isNewer("1.5.9", than: "1.6"))
+    check("업데이트: 태그에서 버전 읽기", Updater.version(fromTag: "v1.9.0") == "1.9.0" && Updater.version(fromTag: "1.10") == "1.10"
+          && Updater.version(fromTag: "latest") == nil && Updater.version(fromTag: "v") == nil && Updater.version(fromTag: "v1.9-beta") == nil)
+    check("업데이트: 릴리스 페이지 주소 → 버전과 zip 주소", {
+        guard let r = Updater.releaseFromTagPage(URL(string: "https://github.com/kjh13242/layerhover/releases/tag/v1.9.0")!) else { return false }
+        return r.version == "1.9.0" && r.url.absoluteString == "https://github.com/kjh13242/layerhover/releases/download/v1.9.0/Layerhover.zip"
+            && Updater.releaseFromTagPage(URL(string: "https://github.com/kjh13242/layerhover/releases")!) == nil
+    }())
+    check("업데이트: 버전 뒤 조사", Updater.ro("1.9.0") == "으로" && Updater.ro("1.9.1") == "로" && Updater.ro("1.9.2") == "로"
+          && Updater.ro("1.9.3") == "으로" && Updater.iGa("1.9.0") == "이" && Updater.iGa("1.9.2") == "가" && Updater.iGa("1.9.7") == "이")
     check("이름이 한국어·영어 모두 있다 (NFR-008)", lib.marks.allSatisfy { !$0.ko.isEmpty && !$0.en.isEmpty })
     var bytes = 0
     for m in lib.marks {

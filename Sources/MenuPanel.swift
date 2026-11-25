@@ -27,10 +27,12 @@ struct MarkImage: View {
     var size: CGFloat = 18
     var color: NSColor = .labelColor
     var library: MarkLibrary = .shared
+    /// 장면 00 을 SwiftUI 이미지로 그린다 (사선을 그을 때: 움직이는 그림은 AppKit 층이라 가리기가 먹지 않을 수 있다)
+    var still = false
 
     var body: some View {
         Group {
-            if let s = library.sprite(id) {
+            if !still, let s = library.sprite(id) {
                 SpriteRepresentable(strips: s.strips, frames: s.frames, fps: library.fps, playing: playing, color: color)
             } else {
                 Image(nsImage: library.still(id)).renderingMode(.template).resizable().interpolation(.high)
@@ -285,21 +287,28 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// 패널 안에서 펼치는 세부 화면 (제어 센터에서 항목 이름을 누르면 옵션이 펼쳐지는 것과 같다)
+enum PanelDetail: Hashable {
+    case icon, reveal
+    /// 이 세부 화면이 커져 나오는 칸
+    var tile: String { self == .icon ? "icon" : "reveal" }
+}
+
 final class MenuModel: ObservableObject {
     @Published var trusted = true
     @Published var enabled = true
-    /// 뽀모도로가 끝나는 때 (nil 이면 쉬는 중)
-    @Published var focusEnd: Date?
     @Published var cheer = ""
     @Published var todayActive: Double = 0      // 오늘 작업 시간 (초)
     @Published var streak: Double = 0           // 쉬지 않고 이어진 지금 작업 구간 (초)
     @Published var panelOpen = false            // 패널이 화면에 떠 있는 동안만 움직임을 돌린다
-    @Published var menuBarDetail = false        // 패널에서 '메뉴 막대' 칸을 펼쳐 세부 설정을 보는 중 (제어 센터의 칸 펼치기)
+    @Published var detail: PanelDetail? = nil    // 패널에서 칸을 펼쳐 세부 화면을 보는 중 (제어 센터에서 항목 이름을 누른 것)
     @Published var figmaRunning = true
     @Published var version = ""
     @Published var marks: [MarkInfo] = []
     @Published var selectedMark = MarkLibrary.defaultID
     @Published var animateMark = true
+    @Published var menuBarIconShown = true     // 메뉴 막대 아이콘이 보이는지 (숨겨도 Layerhover는 그대로 돈다)
+    @Published var morphing = false             // 칸이 세부 화면으로 커지거나 줄어드는 중 (뒤 흐림을 바로 따라 바꾸고, 칸 속 채도 층은 잠깐 내린다)
     @Published var weatherMode = 0      // 0 끔, 1 아이콘, 2 온도와 함께
     @Published var weatherStatus = ""
     @Published var weatherDenied = false
@@ -322,12 +331,12 @@ final class MenuModel: ObservableObject {
 
     struct Actions {
         var toggleEnabled: () -> Void = {}
-        var toggleFocus: () -> Void = {}
         var openAccessibility: () -> Void = {}
         var openPalette: () -> Void = {}
         var showSummary: () -> Void = {}
         var selectMark: (String) -> Void = { _ in }
         var toggleAnimate: () -> Void = {}
+        var toggleMenuBarIcon: () -> Void = {}
         var setWeatherMode: (Int) -> Void = { _ in }
         var setWeatherTemp: (Bool) -> Void = { _ in }
         var checkUpdate: () -> Void = {}
@@ -384,6 +393,8 @@ enum Cheer {
     }
     /// 쉬지 않고 이만큼 이어지면 쉬어 갈 때 (50분)
     static let breakAt: Double = 50 * 60
+    /// 적정 근무시간: 하루 8시간 (근로기준법의 하루 기준). 큰 칸의 바탕 막대가 여기서 가득 찬다
+    static let workDay: Double = 8 * 3600
 }
 
 /// 메뉴 막대 패널: 자주 쓰는 것만 담고, 높이가 바뀌지 않는다 (펼치고 접는 부분이 없다). 바탕 없는 유리 조각들로 이뤄진다.
@@ -392,14 +403,32 @@ struct MenuPanelView: View {
     @ObservedObject var model: MenuModel
     @State private var hoveredMark: String?
     @State private var hoveredRow: String?
-    @Namespace private var morph
+    @State private var hoveredTile: String?
+    /// 칸 → 세부 화면 (제어 센터와 같은 짜임): 누른 칸의 유리가 제자리에서 커져 세부 화면 한 장이 된다.
+    /// 칸의 얼굴(동그라미·이름)은 앞쪽에서 사라지고, 세부 내용은 유리 안에서 나타난다. 나머지 칸은 그 아래에서 흐려진다.
+    /// 닫을 때는 거꾸로 줄어들어 칸으로 돌아간다. morph 0 = 첫 화면, 1 = 세부 화면.
+    @State private var morph: CGFloat
+    @State private var card: PanelDetail?            // 커지거나 줄어드는 중이거나 펼쳐진 세부 화면
+    @State private var tileFrames: [String: CGRect] = [:]
+    @State private var detailSizes: [String: CGSize] = [:]
+    @State private var gridHeight: CGFloat = 0
     @Environment(\.colorScheme) private var scheme
+
+    /// hover: 그림으로 확인할 때만 — 이 칸에 마우스가 올라간 모습으로 그린다 (--render-menu --hover reveal|log|icon)
+    init(model: MenuModel, hover: String? = nil) {
+        self.model = model
+        _hoveredTile = State(initialValue: hover)
+        _card = State(initialValue: model.detail)
+        _morph = State(initialValue: model.detail == nil ? 0 : 1)
+    }
 
     // 제어 센터를 그대로 따른다 (2배 해상도 캡처에서 잰 값):
     //  한 단위 64 · 사이 12 · 폭 4단위 292 · 메뉴 막대 아래 12
     //  모양: 높이 64 칸은 알약, 1×1은 동그라미, 2×2는 둥글기 30
     //  안쪽: 2×1 칸은 동그라미 36이 왼쪽 14에서, 글자는 57에서 · 큰 칸 여백 15
-    //  글자: 제목 13 굵게 흰색 92% · 아래 줄 12.5 흰색 75%
+    //  글자: 제목 12 semibold 흰색 92% · 아래 줄 12 흰색 75%
+    //   (제어 센터 Bluetooth·AirDrop 칸 2배 캡처: "AirDrop" 잉크 89×23px, "Bluetooth" 111px, "끔" 19×20px 가
+    //    SF 12 semibold / 12 regular 로 그린 것과 정확히 같다)
     //  칸을 누르면 펼쳐지는 세부 화면: 폭 307 · 둥글기 26 · 제목 15 굵게 · 줄 32 · 동그라미 26 · 여백 14
     static let unit: CGFloat = 64
     static let gap: CGFloat = 12
@@ -417,18 +446,90 @@ struct MenuPanelView: View {
         // 유리 조각은 하나씩 따로 그린다 (GlassEffectContainer로 묶으면 렌즈가 사라져 뿌옇게 된다).
         // 칸 둘레와 사이의 뒤 화면은 창이 깐 PanelHalo가 흐린다: 각 조각이 자기 자리를 알린다.
         ZStack(alignment: .topLeading) {
-            if model.menuBarDetail {
-                menuBarDetail.transition(.opacity)
-            } else {
-                grid.transition(.opacity)
+            grid
+                .background(GeometryReader { g in Color.clear.onAppear { gridHeight = g.size.height }
+                    .onChange(of: g.size.height) { gridHeight = $0 } })
+                .modifier(GridFade(progress: morph))
+                // 다 펼친 뒤에는 가려진 칸들이 뒤 흐림을 남기지 않게 한다
+                .environment(\.lhHaloReport, card == nil || morph < 0.999)
+                .allowsHitTesting(card == nil)
+            if detailSizes.count < 2 {
+                // 세부 화면 크기를 처음 한 번 미리 잰다 (보이지 않는다): 처음 열 때 카드가 커지는 도중에 목표가 바뀌지 않게
+                ZStack(alignment: .topLeading) {
+                    menuBarDetail.fixedSize().background(sizeReader("icon"))
+                    revealDetail.fixedSize().background(sizeReader("reveal"))
+                }
+                .hidden().allowsHitTesting(false).accessibilityHidden(true)
+                .environment(\.lhHaloReport, false)
+            }
+            if let d = card {
+                Color.clear.modifier(MorphCard(
+                    progress: morph,
+                    from: tileFrames[d.tile],
+                    natural: detailSizes[d.tile],
+                    face: AnyView(tileFace(d)),
+                    detail: AnyView(detailContent(d)),
+                    onSize: { size in if detailSizes[d.tile] != size { detailSizes[d.tile] = size } }))
             }
         }
+        // 창은 늘 세부 화면 폭(307)이고, 세부 화면이 있는 동안 높이는 첫 화면과 세부 화면 중 큰 쪽으로 고정한다:
+        // 여닫는 동안 창 크기가 바뀌지 않아 내용이 밀리거나 튀지 않는다 (남는 자리는 투명하다)
+        .frame(width: MenuPanelView.detailWidth, alignment: .topLeading)
+        .frame(minHeight: card == nil ? nil : max(gridHeight, card.flatMap { detailSizes[$0.tile]?.height } ?? 0), alignment: .topLeading)
         .environment(\.lhPanelGlass, true)
         .coordinateSpace(name: PanelHalo.space)
+        .onPreferenceChange(TileFramesKey.self) { tileFrames = $0 }
+        .onChange(of: model.detail) { moveCard(to: $0) }
     }
 
-    private func toggleDetail(_ on: Bool) {
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) { model.menuBarDetail = on }
+    /// 칸의 이름 쪽을 누르면 그 칸이 제자리에서 커져 세부 화면이 된다 (nil 이면 첫 화면으로)
+    private func openDetail(_ d: PanelDetail?) { model.detail = d }
+
+    private func sizeReader(_ key: String) -> some View {
+        GeometryReader { g in Color.clear.onAppear { if detailSizes[key] == nil { detailSizes[key] = g.size } } }
+    }
+
+    /// 제어 센터처럼: 튀지 않는 용수철(되튐 없음)로 열 때 0.34초, 닫을 때 0.3초쯤
+    private func moveCard(to d: PanelDetail?) {
+        guard model.panelOpen else {                      // 보이지 않을 때(패널을 다시 열 때)는 바로 맞춘다
+            card = d; morph = d == nil ? 0 : 1; return
+        }
+        hoveredTile = nil
+        model.morphing = true
+        if let d {
+            card = d
+            withAnimation(.spring(response: 0.34, dampingFraction: 1)) { morph = 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { if model.detail == d { model.morphing = false } }
+        } else {
+            withAnimation(.spring(response: 0.3, dampingFraction: 1)) { morph = 0 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                guard model.detail == nil else { return }
+                card = nil
+                model.morphing = false
+            }
+        }
+    }
+
+    /// 세부 화면이 커져 나오는 칸의 얼굴 (첫 화면의 그 칸과 똑같이 그린다)
+    @ViewBuilder private func tileFace(_ d: PanelDetail) -> some View {
+        switch d {
+        case .reveal:
+            pillLabel(title: L("패널 꺼내기", "Edge Peek"), note: model.enabled ? L("켬", "On") : L("끔", "Off")) { revealDisc }
+                .opacity(model.trusted ? 1 : 0.4)
+        case .icon:
+            pillLabel(title: L("아이콘", "Icon"), note: model.menuBarIconShown ? shownName : L("숨김", "Hidden")) { iconDiscFace }
+        }
+    }
+
+    @ViewBuilder private func detailContent(_ d: PanelDetail) -> some View {
+        switch d {
+        case .reveal: revealDetail
+        case .icon: menuBarDetail
+        }
+    }
+
+    private func hoverTile(_ id: String, _ inside: Bool) {
+        if inside { hoveredTile = id } else if hoveredTile == id { hoveredTile = nil }
     }
 
     // MARK: 첫 화면
@@ -437,10 +538,12 @@ struct MenuPanelView: View {
         VStack(alignment: .leading, spacing: MenuPanelView.gap) {
             HStack(alignment: .top, spacing: MenuPanelView.gap) {
                 statusModule
-                VStack(spacing: MenuPanelView.gap) { pageModule; pauseModule }
+                // 오른쪽: 켜고 끄는 칸끼리 (패널 꺼내기, 작업 기록)
+                VStack(spacing: MenuPanelView.gap) { revealModule; activityModule }
             }
             if !model.trusted { permissionCard }
-            HStack(spacing: MenuPanelView.gap) { activityModule; iconModule }
+            // 아래 줄: Figma 페이지 검색, 아이콘
+            HStack(spacing: MenuPanelView.gap) { pageModule; iconModule }
             updateRow
             // 맨 아래: 작은 알약(설정) 하나. 제어 센터의 '위젯 편집' 자리. 종료는 아이콘 우클릭 메뉴에 있다
             settingsPill.frame(maxWidth: .infinity)
@@ -458,88 +561,168 @@ struct MenuPanelView: View {
     private var titleStyle: Color { Color.primary.opacity(0.92) }
     private var noteStyle: Color { Color.primary.opacity(0.75) }
 
-    private func pillLabel<Disc: View>(title: String, note: String? = nil, width: CGFloat = MenuPanelView.column, @ViewBuilder disc: () -> Disc) -> some View {
+    private func pillLabel<Disc: View>(title: String, note: String? = nil, width: CGFloat = MenuPanelView.column, chevron: Bool = false,
+                                       @ViewBuilder disc: () -> Disc) -> some View {
         HStack(spacing: 7) {
             disc().frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 13, weight: .bold)).foregroundStyle(titleStyle).lineLimit(1).minimumScaleFactor(0.9)
+                Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(titleStyle).lineLimit(1).minimumScaleFactor(0.9)
                 // 긴 이름은 제어 센터 Wi‑Fi 칸처럼 두 줄로 (잘라 내거나 칸 여백을 넘지 않게)
-                if let note { Text(note).font(.system(size: 12.5)).foregroundStyle(noteStyle).lineLimit(2).minimumScaleFactor(0.85)
-                    .fixedSize(horizontal: false, vertical: true) }
+                // 아래 줄만 0.5pt 내린다: 제어 센터 AirDrop 칸 실측과 글자선이 같아진다 (제목 글자선은 이미 같다: 가운데 위 3.5pt,
+                // 아래 줄 끝은 가운데 아래 13.5pt). 배치가 아니라 그릴 때 옮겨야 화소 맞춤에 묻히지 않는다.
+                if let note { Text(note).font(.system(size: 12)).foregroundStyle(noteStyle).lineLimit(2).minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true).offset(y: 0.5) }
             }
             // 글자 칸 = 동그라미 오른쪽부터 오른쪽 여백 14 앞까지 (Spacer를 두면 간격 7을 한 번 더 먹어 글자가 잘렸다)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // › 가 떠 있는 동안: 제어 센터처럼 글자가 › 앞에서 흐려진다 (2배 캡처 실측: 칸 오른쪽 끝에서 27.5pt 앞에서 끝나고
+            // 그 앞 19pt 동안 흐려진다). 제어 센터는 끝에서 44%로 끊지만, 한글은 글자가 반쯤 잘려 보여 끝에서 0이 되게 한다.
+            // 글자 배치는 그대로 두고 가리기만 한다 (줄바꿈이 바뀌지 않게).
+            .mask {
+                GeometryReader { g in
+                    let w = max(g.size.width, 1), cut = g.size.width - 13.5
+                    LinearGradient(stops: chevron ? [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: max(0, (cut - 19) / w)),
+                        .init(color: .clear, location: max(0, cut / w)),
+                        .init(color: .clear, location: 1)
+                    ] : [.init(color: .black, location: 0), .init(color: .black, location: 1)],
+                    startPoint: .leading, endPoint: .trailing)
+                }
+            }
         }
         // 글자는 양쪽 여백 14 안에만 (오른쪽도 왼쪽과 같게)
         .padding(.horizontal, 14)
         .frame(width: width, height: MenuPanelView.unit)
+        // 자세히로 들어가는 칸: 마우스를 올리면 › 가 뜬다 (제어 센터 Bluetooth 칸 2배 캡처 실측:
+        // 보이는 획 5.5×10.5pt·굵기 2pt = chevron.right 12pt semibold, 보이는 오른쪽 끝이 칸 끝에서 14.85pt,
+        // 세로 가운데, 흰색 46%)
+        .overlay(alignment: .trailing) {
+            if chevron {
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.46))
+                    .padding(.trailing, 12.5).transition(.opacity).accessibilityHidden(true)   // 기호 틀 안쪽 여유까지 재서 맞춘 값
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: chevron)
         .contentShape(pill)
     }
 
-    private func symbolDisc(_ symbol: String, on: Bool = false) -> some View {
-        Circle().fill(discFill(on))
-            .overlay(Image(systemName: symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(glyphColor(on)).accessibilityHidden(true))
+    /// 2×1 칸 — 제어 센터 규칙 (Apple 사용 설명서: '아이콘을 클릭하여 기능을 켜거나 끄기 · 항목을 클릭하여 옵션 표시하기').
+    ///  동그라미를 누르면 그 기능을 켜고 끈다 (채워진 동그라미 = 켜짐). 나머지(이름 쪽)를 누르면 자세히로 들어간다.
+    ///  칸 전체 유리는 아래의 '자세히' 단추가 맡고, 그 위 같은 자리에 동그라미 단추를 얹는다.
+    private func splitTile<Disc: View>(id: String, title: String, note: String, isOn: Bool, dimmed: Bool = false,
+                                       toggle: @escaping () -> Void, open: @escaping () -> Void,
+                                       @ViewBuilder disc: () -> Disc) -> some View {
+        ZStack(alignment: .leading) {
+            Button(action: open) {
+                pillLabel(title: title, note: note, chevron: hoveredTile == id) { Color.clear }
+                    .opacity(dimmed ? 0.4 : 1)
+            }
+            .buttonStyle(GlassKeyStyle(shape: pill))
+            .accessibilityLabel(L("\(title) 자세히", "\(title) details"))
+            Button(action: toggle) {
+                disc().frame(width: 36, height: 36).contentShape(Circle())
+                    .animation(.smooth(duration: 0.2), value: isOn)
+            }
+            .buttonStyle(DiscKeyStyle())
+            .opacity(dimmed ? 0.4 : 1)
+            .padding(.leading, 14)
+            .accessibilityLabel(title)
+            .accessibilityValue(isOn ? L("켬", "On") : L("끔", "Off"))
+        }
+        .onHover { hoverTile(id, $0) }
+        .background(GeometryReader { g in
+            Color.clear.preference(key: TileFramesKey.self, value: [id: g.frame(in: .named(PanelHalo.space))])
+        })
+        // 이 칸이 세부 화면으로 커져 있는 동안 자리는 커지는 유리가 맡는다
+        .opacity(card?.tile == id ? 0 : 1)
+        .environment(\.lhHaloReport, card?.tile != id)
     }
 
-    /// 2×2 집중 칸 (제어 센터의 '재생 중' 칸 자리). 누르면 뽀모도로(25분 집중)가 시작되고, 도는 중에 누르면 멈춘다.
-    ///  평소: 쉬지 않고 이어서 일한 시간을 크게, 막대가 50분까지 찬다 (넘으면 주황 · '쉬어 갈 때예요'). 아래는 오늘 작업 시간.
-    ///  집중 중: 남은 시간을 크게, 막대가 줄어든다. 끝나면 소리와 알림.
+    private func symbolDisc(_ symbol: String, on: Bool = false, slashed: Bool = false) -> some View {
+        Circle().fill(discFill(on))
+            .overlay(Image(systemName: symbol).font(.system(size: 16, weight: .semibold)).foregroundStyle(glyphColor(on))
+                .offSlash(slashed, length: 22, angle: 40).accessibilityHidden(true))     // chart.bar.xaxis 잉크 18×15pt
+    }
+
+    /// 2×2 오늘 작업 칸 (제어 센터의 '재생 중' 칸 자리). 누르면 작업 기록 창이 열린다 (작업 기록 칸의 이름 쪽과 같다).
+    ///  바탕: 적정 근무시간(하루 8시간) 막대 — 오늘 작업한 만큼 칸 바탕이 아래에서부터 차오른다. 8시간을 넘기면 주황으로 가득 찬다.
+    ///  위: 오늘 Figma에서 작업한 시간을 크게 (건강·스크린 타임처럼 숫자는 크게, 단위는 작게).
+    ///  아래 한 줄: 쉬지 않고 이어서 일한 시간. 50분을 넘기면 주황 '쉬어 갈 때예요', 8시간을 넘기면 주황 '오늘은 충분해요'.
+    ///  이어서 일한 게 1분도 안 됐으면 비운다. 작업 기록을 끄면 그때까지 센 시간을 흐리게 두고 '기록 꺼짐'.
     private var statusModule: some View {
-        let end = model.focusEnd
-        return Button(action: model.actions.toggleFocus) {
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                let left = max(0, end.map { $0.timeIntervalSince(ctx.date) } ?? 0)
-                let running = end != nil && left > 0
-                let logging = model.workLog
-                // 1분도 이어서 일하지 않았으면 '쉬지 않고 0분' 대신 집중 권유(25분)를 보인다
-                let streaking = logging && streakMinutes > 0
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(running || !streaking ? L("집중", "Focus")
-                         : needsBreak ? L("쉬어 갈 때예요", "Time for a break") : L("쉬지 않고", "Without a break"))
-                        .font(.system(size: 12.5, weight: .medium)).foregroundStyle(noteStyle).lineLimit(1).minimumScaleFactor(0.85)
-                    Text(running ? Focus.clock(left) : streaking ? L("\(streakMinutes)분", "\(streakMinutes) min") : L("25분", "25 min"))
-                        .font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()
-                        .foregroundStyle(titleStyle).lineLimit(1).minimumScaleFactor(0.7)
-                        .padding(.top, 2)
-                    Spacer(minLength: 0)
-                    if running || streaking {
-                        progressBar(running ? left / Focus.length : min(1, model.streak / Cheer.breakAt),
-                                    color: running ? LH.accent : runColor)
-                    }
-                    if logging {
-                        Text(todayLine).font(.system(size: 12.5)).foregroundStyle(noteStyle).lineLimit(1).minimumScaleFactor(0.85).padding(.top, 9)
-                    }
+        let logging = model.workLog
+        let streaking = logging && streakMinutes > 0
+        let over = logging && model.todayActive >= Cheer.workDay
+        let note: (text: String, warn: Bool)? =
+            !logging ? (L("기록 꺼짐", "Not recording"), false)
+            : over ? (L("오늘은 충분해요", "Enough for today"), true)
+            : needsBreak ? (L("쉬어 갈 때예요", "Time for a break"), true)
+            : streaking ? (L("쉬지 않고 \(streakMinutes)분", "\(streakMinutes) min nonstop"), false) : nil
+        return Button(action: model.actions.showSummary) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(L("오늘 작업", "Today"))
+                    .font(.system(size: 12.5, weight: .medium)).foregroundStyle(noteStyle).lineLimit(1).minimumScaleFactor(0.85)
+                durationText(model.todayActive)
+                    .foregroundStyle(titleStyle).opacity(logging ? 1 : 0.4)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .padding(.top, 2)
+                Spacer(minLength: 0)
+                if let note {
+                    Text(note.text)
+                        .font(.system(size: 12.5, weight: note.warn ? .semibold : .regular))
+                        // 칸이 이미 주황으로 찼으면(8시간 넘음) 글자는 주황이 아니라 제목 색으로 (주황 위 주황은 읽히지 않는다)
+                        .foregroundStyle(over ? titleStyle : note.warn ? warnColor : noteStyle).lineLimit(1).minimumScaleFactor(0.85)
                 }
-                .animation(.smooth(duration: 0.25), value: running)
             }
             // 제어 센터 '재생 중' 칸 실측: 내용이 왼쪽·위 14에서, 아래 끝은 바닥에서 19
             .padding(.top, 14).padding(.horizontal, 14).padding(.bottom, 18)
             .frame(width: MenuPanelView.column, height: MenuPanelView.span(2), alignment: .topLeading)
+            .background { dayBar(min(1, model.todayActive / Cheer.workDay), over: over).opacity(logging ? 1 : 0.4) }
             .contentShape(big)
         }
         .buttonStyle(GlassKeyStyle(shape: big))
-        .accessibilityLabel(L("집중", "Focus"))
-        .accessibilityValue(end != nil ? L("집중 중", "Focusing")
-                            : !model.workLog ? L("25분", "25 min")
-                            : streakMinutes > 0 ? L("쉬지 않고 \(streakMinutes)분, \(todayLine)", "\(streakMinutes) min without a break, \(todayLine)")
-                            : todayLine)
+        .accessibilityLabel(L("오늘 작업", "Worked today"))
+        .accessibilityValue([Cheer.duration(model.todayActive),
+                             L("적정 근무시간 8시간 중 \(Int(min(1, model.todayActive / Cheer.workDay) * 100))%",
+                               "\(Int(min(1, model.todayActive / Cheer.workDay) * 100))% of an 8-hour day"),
+                             !logging ? L("기록 꺼짐", "Not recording")
+                             : over ? L("오늘은 충분해요", "Enough for today")
+                             : needsBreak ? L("쉬지 않고 \(Cheer.duration(model.streak)), 쉬어 갈 때예요", "\(Cheer.duration(model.streak)) without a break, time for a break")
+                             : streaking ? L("쉬지 않고 \(streakMinutes)분", "\(streakMinutes) min without a break") : nil]
+                            .compactMap { $0 }.joined(separator: ", "))
+        .accessibilityHint(L("작업 기록 창을 열어요", "Opens the activity window"))
+    }
+
+    /// 적정 근무시간 막대: 칸 바탕 자체가 막대다. 제어 센터의 큰 밝기·소리 막대처럼 아래에서부터 차오르고, 칸 모양으로 잘린다.
+    ///  (가로로 차게 하면 경계가 큰 숫자를 세로로 갈라 읽기 어렵다. 세로는 경계가 줄 사이를 지난다)
+    private func dayBar(_ fraction: Double, over: Bool) -> some View {
+        let dark = scheme == .dark
+        let color = over ? Color.orange.opacity(dark ? 0.42 : 0.24) : LH.accent.opacity(dark ? 0.3 : 0.2)
+        return GeometryReader { g in
+            Rectangle().fill(color).frame(height: g.size.height * fraction)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+        .clipShape(big)
+        .animation(.smooth(duration: 0.6), value: fraction)
+        .accessibilityHidden(true)
+    }
+
+    /// 시간 길이: 숫자는 크게, 단위는 작게 (건강·스크린 타임과 같은 표기). 2시간 40분 · 2h 40m
+    private func durationText(_ seconds: Double) -> Text {
+        let m = Int(seconds / 60), h = m / 60, r = m % 60
+        func n(_ v: Int) -> Text { Text(verbatim: "\(v)").font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit() }
+        func u(_ s: String) -> Text { Text(verbatim: s).font(.system(size: 17, weight: .semibold, design: .rounded)) }
+        if h == 0 { return n(m) + u(L("분", "m")) }
+        if r == 0 { return n(h) + u(L("시간", "h")) }
+        return n(h) + u(L("시간 ", "h ")) + n(r) + u(L("분", "m"))
     }
 
     private var streakMinutes: Int { Int(model.streak / 60) }
     private var needsBreak: Bool { model.streak >= Cheer.breakAt }
-    private var todayLine: String { L("오늘 \(Cheer.duration(model.todayActive))", "\(Cheer.duration(model.todayActive)) today") }
-    private var runColor: Color { needsBreak ? .orange : LH.accent }
-
-    private func progressBar(_ fraction: Double, color: Color) -> some View {
-        GeometryReader { g in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.14))
-                Capsule().fill(color).frame(width: max(5, g.size.width * max(0, min(1, fraction))))
-            }
-        }
-        .frame(height: 5)
-        .accessibilityHidden(true)
-    }
+    /// 주황 경고 글자: 밝은 유리 위에서도 읽히게 밝은 화면에서는 진한 주황 (#C2570C, 흰 바탕 대비 4.6:1)
+    private var warnColor: Color { scheme == .dark ? .orange : Color(red: 0.76, green: 0.34, blue: 0.05) }
 
     private var permissionCard: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -574,20 +757,23 @@ struct MenuPanelView: View {
         .accessibilityLabel(L("Figma 페이지 검색", "Find a Figma page"))
     }
 
-    /// 2×1 아이콘: 지금 메뉴 막대에 보이는 아이콘과 '아이콘'. 누르면 이 칸이 '메뉴 막대 아이콘' 세부 화면으로 커진다.
+    /// 2×1 아이콘: 동그라미 = 메뉴 막대 아이콘 보이기·숨기기 (숨겨도 패널 꺼내기·작업 기록은 그대로 돈다.
+    /// 숨긴 뒤에는 Layerhover를 다시 열면 아이콘이 돌아온다), 이름 쪽 = 자세히 (아이콘 고르기).
+    /// 아래 줄은 지금 아이콘 이름, 숨겼으면 '숨김'. 숨기면 기호에 사선을 긋는다.
     private var iconModule: some View {
-        Button { toggleDetail(true) } label: {
-            pillLabel(title: L("아이콘", "Icon"), note: shownName) {
-                ZStack {
-                    Circle().fill(discFill(false))
-                    MarkImage(id: shownMark, playing: model.enabled && model.animateMark && model.motionBlocked == nil, size: 20,
-                              color: model.enabled ? .labelColor : .tertiaryLabelColor)
-                }
-            }
+        let shown = model.menuBarIconShown
+        return splitTile(id: "icon", title: L("아이콘", "Icon"), note: shown ? shownName : L("숨김", "Hidden"),
+                         isOn: shown, toggle: model.actions.toggleMenuBarIcon, open: { openDetail(.icon) }) { iconDiscFace }
+    }
+
+    private var iconDiscFace: some View {
+        let shown = model.menuBarIconShown
+        return ZStack {
+            Circle().fill(discFill(shown))
+            MarkImage(id: shownMark, playing: shown && model.enabled && model.animateMark && model.motionBlocked == nil, size: 20,
+                      color: shown ? glyphNSColor(true) : .labelColor, still: !shown)
+                .offSlash(!shown, length: 23, angle: 45)                               // 아이콘 그림은 정사각형
         }
-        .buttonStyle(GlassKeyStyle(shape: pill))
-        .matchedGeometryEffect(id: "sheet", in: morph, anchor: .topLeading, isSource: !model.menuBarDetail)
-        .accessibilityLabel(L("메뉴 막대 아이콘: \(shownName)", "Menu bar icon: \(shownName)"))
     }
 
     /// 메뉴 막대에 지금 보이는 것: 날씨를 켰으면 날씨, 아니면 고른 아이콘
@@ -599,32 +785,30 @@ struct MenuPanelView: View {
         return model.marks.first { $0.id == model.selectedMark }?.name ?? ""
     }
 
-    /// 2×1 패널 꺼내기: 기능 이름 + 지금 상태. 켜져 있는 평소에는 다른 칸과 같은 회색 동그라미 ('켬'),
-    /// 멈춰 두었을 때만 흰 동그라미(+파란 기호)로 눈에 띄게 한다 ('멈춤') — 평소와 다른 상태만 강조한다.
-    /// 끄면 화면 끝에 닿아도 패널이 나오지 않는다.
-    private var pauseModule: some View {
+    /// 2×1 패널 꺼내기: 동그라미 = 켜고 끄기 (채워지면 켜짐, 끄면 화면 끝에 닿아도 패널이 나오지 않는다),
+    /// 이름 쪽 = 자세히 (속도·꺼내는 곳). 권한이 없으면 누를 수 없으니 Figma 칸처럼 흐리게.
+    private var revealModule: some View {
         let on = model.enabled
-        return Button(action: model.actions.toggleEnabled) {
-            pillLabel(title: L("패널 꺼내기", "Edge Peek"), note: on ? L("켬", "On") : L("멈춤", "Paused")) {
-                Circle().fill(discFill(!on))
-                    .overlay(Image(systemName: "sidebar.left").font(.system(size: 15, weight: .semibold)).foregroundStyle(glyphColor(!on)))
-                    .animation(.smooth(duration: 0.2), value: on)
-            }
-            .opacity(model.trusted ? 1 : 0.4)   // 권한이 없으면 누를 수 없으니 Figma 칸처럼 흐리게
-        }
-        .buttonStyle(GlassKeyStyle(shape: pill))
+        return splitTile(id: "reveal", title: L("패널 꺼내기", "Edge Peek"), note: on ? L("켬", "On") : L("끔", "Off"),
+                         isOn: on, dimmed: !model.trusted,
+                         toggle: model.actions.toggleEnabled, open: { openDetail(.reveal) }) { revealDisc }
         .disabled(!model.trusted)
-        .accessibilityLabel(L("패널 꺼내기", "Edge Peek"))
-        .accessibilityValue(on ? L("켬", "On") : L("멈춤", "Paused"))
     }
 
-    /// 2×1 작업 기록: 이번 주 그래프와 파일·페이지별 시간을 여는 칸
+    private var revealDisc: some View {
+        let on = model.enabled
+        return Circle().fill(discFill(on))
+            .overlay(Image(systemName: "sidebar.left").font(.system(size: 15, weight: .semibold)).foregroundStyle(glyphColor(on))
+                .offSlash(!on, length: 21, angle: 39))                                     // sidebar.left 잉크 17.5×14pt
+    }
+
+    /// 2×1 작업 기록: 동그라미 = 기록 켜고 끄기 (채워지면 기록 중), 이름 쪽 = 자세히 (이번 주 작업 기록 창 — 패널에 담기엔 커서 창으로 연다)
     private var activityModule: some View {
-        Button(action: model.actions.showSummary) {
-            pillLabel(title: L("작업 기록", "Activity"), note: L("이번 주", "This week")) { symbolDisc("chart.bar.xaxis") }
+        let on = model.workLog
+        return splitTile(id: "log", title: L("작업 기록", "Activity"), note: on ? L("기록 중", "On") : L("끔", "Off"),
+                         isOn: on, toggle: model.actions.toggleWorkLog, open: model.actions.showSummary) {
+            symbolDisc("chart.bar.xaxis", on: on, slashed: !on)
         }
-        .buttonStyle(GlassKeyStyle(shape: pill))
-        .accessibilityLabel(L("작업 기록", "Activity"))
     }
 
     /// 맨 아래 작은 알약: 설정
@@ -643,7 +827,7 @@ struct MenuPanelView: View {
             Button(action: model.actions.installUpdate) {
                 HStack(spacing: 7) {
                     symbolDisc("arrow.down", on: true).frame(width: 36, height: 36)
-                    Text(L("\(v)으로 업데이트", "Update to \(v)")).font(.system(size: 13, weight: .bold)).foregroundStyle(titleStyle)
+                    Text(L("\(v)\(Updater.ro(v)) 업데이트", "Update to \(v)")).font(.system(size: 12, weight: .semibold)).foregroundStyle(titleStyle)
                     Spacer(minLength: 0)
                 }
                 .padding(.leading, 14).frame(width: MenuPanelView.width, height: MenuPanelView.unit)
@@ -657,16 +841,7 @@ struct MenuPanelView: View {
 
     private var menuBarDetail: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 제목 = 돌아가기 (‹ 메뉴 막대). esc 로도 돌아간다
-            Button { toggleDetail(false) } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.left").font(.system(size: 12, weight: .bold)).foregroundStyle(noteStyle)
-                    Text(L("메뉴 막대 아이콘", "Menu Bar Icon")).font(.system(size: 15, weight: .bold)).foregroundStyle(titleStyle)
-                    Spacer(minLength: 0)
-                }
-                .frame(height: 28).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+            detailHeader(L("메뉴 막대 아이콘", "Menu Bar Icon"))
             detailDivider
             sectionLabel(L("아이콘", "Icon"))
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 6) {
@@ -692,8 +867,81 @@ struct MenuPanelView: View {
         }
         .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 10)
         .frame(width: MenuPanelView.detailWidth, alignment: .leading)
-        .liquidGlass(sheet)
-        .matchedGeometryEffect(id: "sheet", in: morph, anchor: .topLeading, isSource: model.menuBarDetail)
+    }
+
+    // MARK: 펼친 화면: 패널 꺼내기 (제어 센터 Wi‑Fi 세부 화면과 같은 짜임: 제목 줄에 켜고 끄기, 아래에 옵션, 맨 아래 설정…)
+
+    private var revealDetail: some View {
+        let speeds = [L("바로", "Instant"), L("보통", "Normal"), L("느긋하게", "Relaxed")]
+        let onOff = [L("켬", "On"), L("끔", "Off")]
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                detailHeader(L("패널 꺼내기", "Edge Peek"))
+                LHSegmented(options: onOff, selection: model.enabled ? 0 : 1, label: L("패널 꺼내기", "Edge Peek"), height: 24, fontSize: 12) { i in
+                    if (i == 0) != model.enabled { model.actions.toggleEnabled() }
+                }
+                .frame(width: 96)
+            }
+            detailDivider
+            sectionLabel(L("속도", "Speed"))
+            choiceRow(L("꺼낼 때", "Reveal"), options: speeds, selection: model.reveal, width: 186, action: model.actions.setReveal)
+            choiceRow(L("넣을 때", "Fold away"), options: speeds, selection: model.collapse, width: 186, action: model.actions.setCollapse)
+            detailDivider
+            sectionLabel(L("꺼내는 곳", "Where"))
+            choiceRow(L("오른쪽 끝 · 속성 패널", "Right edge · Properties"), options: onOff, selection: model.rightEdge ? 0 : 1, width: 96) { i in
+                if (i == 0) != model.rightEdge { model.actions.toggleRightEdge() }
+            }
+            choiceRow(L("새 파일은 패널을 접고 시작", "Start new files minimized"), options: onOff, selection: model.minimizeByDefault ? 0 : 1, width: 96) { i in
+                if (i == 0) != model.minimizeByDefault { model.actions.toggleMinimize() }
+            }
+            detailDivider
+            linkRow(L("패널 꺼내기 설정…", "Edge Peek Settings…")) {
+                model.settingsPane = .reveal
+                model.actions.showSettings()
+            }
+        }
+        .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 8)
+        .frame(width: MenuPanelView.detailWidth, alignment: .leading)
+    }
+
+    /// 세부 화면 제목 = 돌아가기 (‹ 이름). esc 로도 돌아간다
+    private func detailHeader(_ title: String) -> some View {
+        Button { openDetail(nil) } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.left").font(.system(size: 12, weight: .bold)).foregroundStyle(noteStyle)
+                Text(title).font(.system(size: 15, weight: .bold)).foregroundStyle(titleStyle).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .frame(height: 28).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 세부 화면의 고르기 한 줄: 왼쪽 이름, 오른쪽 선택 막대 (설정 창과 같은 조작 방식)
+    private func choiceRow(_ title: String, options: [String], selection: Int?, width: CGFloat, action: @escaping (Int) -> Void) -> some View {
+        HStack(spacing: 8) {
+            Text(title).font(.system(size: 13)).foregroundStyle(titleStyle).lineLimit(1).minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            LHSegmented(options: options, selection: selection, label: title, height: 24, fontSize: 12, action: action)
+                .frame(width: width)
+        }
+        .frame(height: 34)
+    }
+
+    /// 세부 화면 맨 아래: 설정 창의 그 칸을 연다 (제어 센터의 'Wi‑Fi 설정…'과 같다)
+    private func linkRow(_ title: String, action: @escaping () -> Void) -> some View {
+        let hovered = hoveredRow == "link"
+        return Button(action: action) {
+            Text(title).font(.system(size: 13)).foregroundStyle(titleStyle).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 7)
+                .frame(height: 30)
+                .background { if hovered { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.08)) } }
+                .contentShape(Rectangle())
+                .padding(.horizontal, -7)
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in if inside { hoveredRow = "link" } else if hoveredRow == "link" { hoveredRow = nil } }
     }
 
     private var detailDivider: some View {
@@ -939,10 +1187,98 @@ struct WelcomeView: View {
     }
 }
 
-/// 뽀모도로 한 번의 길이: 널리 쓰는 25분
-enum Focus {
-    /// 화면 확인 모드에서만 LAYERHOVER_FOCUS_SECONDS 로 줄여 시험한다
-    static let length: TimeInterval = (uiPreview ? ProcessInfo.processInfo.environment["LAYERHOVER_FOCUS_SECONDS"].flatMap(TimeInterval.init) : nil) ?? 25 * 60
-    /// 남은 시간 14:32
-    static func clock(_ seconds: TimeInterval) -> String { String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60) }
+// MARK: - 꺼진 기능의 사선
+
+/// 꺼진 기능의 기호: 왼쪽 위에서 오른쪽 아래로 사선을 긋는다 (macOS의 '…slash' 기호와 같은 표시).
+/// 사선 양옆은 기호를 비워 사선이 기호와 떨어져 또렷하게 보인다.
+///  제어 센터 AirDrop 꺼짐 칸 2배 캡처 실측: 사선 길이 22pt·굵기 1.6pt, 양옆 비운 틈 1.5pt, 기울기는 기호 잉크 상자의
+///  대각선을 따른다 (AirDrop 49°, SF 기호 wifi.slash 39°·bell.slash 47°) — 그래서 기호마다 angle 을 따로 준다.
+struct OffSlash: ViewModifier {
+    let off: Bool
+    var length: CGFloat = 22
+    var angle: Double = 45            // 가로에서 아래로 기운 각도 (왼쪽 위 → 오른쪽 아래)
+    var color: Color = .primary
+    func body(content: Content) -> some View {
+        content
+            .mask {
+                ZStack {
+                    Rectangle().padding(-8)
+                    if off {
+                        Capsule().frame(width: length + 8, height: 4.6).rotationEffect(.degrees(angle)).blendMode(.destinationOut)
+                    }
+                }
+                .compositingGroup()
+            }
+            .overlay {
+                // 1.5pt (2배 화면 3px): 덮은 양이 제어 센터 사선(1.62pt)과 거의 같다
+                if off { Capsule().fill(color).frame(width: length, height: 1.5).rotationEffect(.degrees(angle)).allowsHitTesting(false) }
+            }
+            .animation(.smooth(duration: 0.2), value: off)
+    }
+}
+
+extension View {
+    func offSlash(_ off: Bool, length: CGFloat = 22, angle: Double = 45, color: Color = .primary) -> some View {
+        modifier(OffSlash(off: off, length: length, angle: angle, color: color))
+    }
+}
+
+// MARK: - 칸 → 세부 화면 (제어 센터처럼 칸이 커진다)
+
+/// 칸마다 패널 안 자리 (커지는 카드의 출발점)
+struct TileFramesKey: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) { value.merge(nextValue()) { $1 } }
+}
+
+/// 세부 화면이 커지는 동안 첫 화면의 다른 칸들: 열 때는 앞 30% 안에 사라지고, 닫을 때는 카드가 거의 칸 크기로
+/// 돌아온 마지막 30%에서야 나타난다 (유리 위에 유리가 겹쳐 어두운 얼룩이 비치지 않게 — 제어 센터도 겹쳐 보이지 않는다)
+struct GridFade: ViewModifier, Animatable {
+    var progress: CGFloat
+    var animatableData: CGFloat { get { progress } set { progress = newValue } }
+    func body(content: Content) -> some View {
+        content.opacity(Double(max(0, min(1, 1 - progress / 0.3))))
+    }
+}
+
+/// 누른 칸의 유리가 세부 화면으로 커지는 카드. progress 0 이면 칸 자리·알약 모양, 1 이면 세부 화면 자리(패널 왼쪽 위)·둥글기 26.
+/// 자리·크기·둥글기가 함께 움직이고, 칸 얼굴은 앞 30% 안에 사라지며, 세부 내용은 20%~70% 사이에 유리 안에서 나타난다.
+/// 내용은 제 크기로 왼쪽 위에 붙어 있고 유리 모양으로 잘린다 (늘었다 줄었다 하지 않는다).
+struct MorphCard: ViewModifier, Animatable {
+    var progress: CGFloat
+    let from: CGRect?                // 칸 자리 (모르면 세부 화면 자리에서 시작)
+    let natural: CGSize?             // 세부 내용의 제 크기 (처음 한 번 재고 나면 안다)
+    let face: AnyView
+    let detail: AnyView
+    let onSize: (CGSize) -> Void
+    var animatableData: CGFloat { get { progress } set { progress = newValue } }
+
+    func body(content _: Content) -> some View {
+        let p = max(0, min(1, progress))
+        if natural == nil && p >= 0.999 {
+            // 아직 크기를 재기 전에 다 펼친 채로 그릴 때(그림 저장 등): 제 크기 그대로
+            return AnyView(detail.fixedSize()
+                .background(GeometryReader { g in Color.clear.onAppear { onSize(g.size) }.onChange(of: g.size) { onSize($0) } })
+                .liquidGlass(RoundedRectangle(cornerRadius: 26, style: .continuous)))
+        }
+        let to = CGRect(origin: .zero, size: natural ?? CGSize(width: MenuPanelView.detailWidth, height: 280))
+        let a = from ?? to
+        func mix(_ x: CGFloat, _ y: CGFloat) -> CGFloat { x + (y - x) * p }
+        let r = CGRect(x: mix(a.minX, to.minX), y: mix(a.minY, to.minY), width: mix(a.width, to.width), height: mix(a.height, to.height))
+        let shape = RoundedRectangle(cornerRadius: mix(a.height / 2, 26), style: .continuous)
+        return AnyView(ZStack(alignment: .topLeading) {
+            face
+                .opacity(Double(max(0, 1 - p / 0.3)))
+                .allowsHitTesting(false)
+            detail
+                .fixedSize()
+                .background(GeometryReader { g in Color.clear.onAppear { onSize(g.size) }.onChange(of: g.size) { onSize($0) } })
+                .opacity(Double(max(0, min(1, (p - 0.2) / 0.5))))
+                .allowsHitTesting(p > 0.98)
+        }
+        .frame(width: max(1, r.width), height: max(1, r.height), alignment: .topLeading)
+        .clipShape(shape)
+        .liquidGlass(shape)
+        .padding(EdgeInsets(top: r.minY, leading: r.minX, bottom: 0, trailing: 0)))
+    }
 }
